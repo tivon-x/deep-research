@@ -1,0 +1,151 @@
+# Deep Research
+
+English version: [README.md](./README.md)
+
+Deep Research 是一个多智能体系统，旨在自主对任何主题进行高保真研究。该系统基于 [Deep Agents](https://github.com/deepagents/deepagents) 框架构建，通过协调专业的 AI 智能体团队，实现信息的规划、搜索、验证并最终合成专业报告。
+
+本系统超越了简单的“搜索并总结”循环，将研究视为结构化的工程流水线。它能将模糊的用户查询转化为明确的研究简报（research briefs），执行并行搜索任务，审计调研质量，并在极少人工干预的情况下生成带有引用的专业报告。
+
+## 🛠️ 技术栈
+
+- **框架**: Python 3.12+, Deep Agents (`>=0.4.5`)
+- **编排**: LangChain + LangGraph
+- **智能**: LangChain OpenAI（支持任何兼容 OpenAI 的 API）
+- **搜索**: Tavily Search API（用于获取高质量网页数据并进行 Markdown 转换）
+- **界面**: 基于 Rich 的命令行界面（CLI），提供结构化的终端反馈
+
+## 🏗️ 系统架构
+
+系统采用层次化的“中心辐射”（Hub and Spoke）模型。中央编排器负责管理流程，并将具体的技术任务委派给四个专业的子智能体。
+
+| 智能体 | 模型角色 | 主要职责 |
+| :--- | :--- | :--- |
+| **编排器 (Orchestrator)** | `MAIN_MODEL_ID` | 高层规划、任务委派和状态管理。 |
+| **范围界定 (Scoping)** | `SUBAGENT_MODEL_ID` | 意图分析和子问题生成，并等待人工审批。 |
+| **研究员 (Researcher)** | `SUBAGENT_MODEL_ID` | 通过 Tavily 进行深度网页搜索并提取原始数据。 |
+| **验证器 (Verification)** | `SUBAGENT_MODEL_ID` | 根据初始研究简报审计调研结果的质量。 |
+| **报告撰写员 (Report Writer)** | `SUBAGENT_MODEL_ID` | 将验证后的数据合成最终的、带有引用的 Markdown 文档。 |
+
+## 🔄 工作流程
+
+Deep Research 遵循严格的 8 步执行流水线，以确保研究的深度和一致性。
+
+```text
+[1. 规划] --> [2. 界定范围] --> [3. 任务分解] --> [4. 执行研究]
+                                                        |
+[8. 完成] <-- [7. 撰写报告] <-- [6. 迭代优化] <-- [5. 质量验证]
+```
+
+### 第 1 步：规划 (Plan)
+编排器初始化工作区，通过 `write_todos` 创建任务列表，并将原始请求记录到 `/research_request.md`。
+
+### 第 2 步：界定范围 (Scope)
+范围界定智能体将主题分解为 2 到 5 个核心子问题。此时系统会触发 **人机协作 (Human-in-the-Loop)** 中断，在消耗任何 API 额度前等待人工确认研究方向。
+
+### 第 3 步：分解研究任务 (Decompose)
+编排器分析研究简报以确定所需的并行度。系统会根据主题复杂度动态扩展，从简单的单任务模式到复杂主题的多个并行任务（默认最多 3 个）。
+
+### 第 4 步：执行研究 (Research)
+每个子问题由独立的系统研究员处理。智能体最多执行 5 次 Tavily 搜索，获取完整的 Markdown 格式网页内容，并将发现保存到 `/research_findings/` 目录。
+
+### 第 5 步：质量验证 (Verify)
+专门的验证智能体会对调研结果进行审计。它负责检查覆盖范围的缺失，并将研究质量评定为 `COMPLETE`（完成）、`NEEDS_MINOR_ADDITIONS`（需要少量补充）或 `NEEDS_MAJOR_REWORK`（需要重大重做）。
+
+### 第 6 步：迭代优化 (Iterate)
+如果审计发现高优先级的缺失，编排器会分派针对性的补充研究任务。系统会在现有文件基础上进行增量构建，而非从零开始。
+
+### 第 7 步：撰写报告 (Report)
+报告撰写智能体合成所有验证后的调研结果。它会根据内容选择合适的结构模板（如对比、分析、概述等），并在 `/final_report.md` 生成带有文中引用的专业报告。
+
+### 第 8 步：最终检查 (Finish)
+编排器进行最后的通读，确保用户的原始问题已得到充分解答，最后呈现研究总结和文件路径。
+
+## ✨ 核心设计亮点
+
+- **自适应任务分解**：系统根据主题复杂度动态调整研究员数量，而非使用硬编码的线程数。针对具体问题使用单个智能体；而对宽泛主题，则调用多达三个智能体并行工作。
+
+- **文件系统即共享内存**：所有的中间产物——研究简报、子话题调研、验证报告、最终报告——都以 Markdown 文件形式持久化。这使得整个流水线完全可审计、可恢复，并且易于在中途调试。
+
+- **无状态子智能体设计**：每次子智能体调用都是自包含的。编排器在调用时传递完整的上下文（子问题、文件路径、约束条件），确保了系统的可靠性，并使单个智能体的替换变得非常简单。
+
+- **验证关卡**：所有数据在通过专门的审计步骤前不会进入最终报告。验证智能体会对照研究简报中的子问题检查覆盖情况，并在合成开始前标记未经验证或存在矛盾的观点。
+
+- **人机协作界定范围**：利用 LangGraph 的中断机制（`request_approval`）暂停执行，在搜索开始前获取人工对研究简报的确认，有效防止因理解偏差导致的 API 调用浪费。
+
+- **搜索与完整内容获取**：系统不仅依赖搜索摘要，`tavily_search` 工具还会抓取完整的网页内容并转换为 Markdown，为研究智能体提供更丰富的素材。
+
+- **多模型架构**：强模型驱动推理密集的编排器；多种模型处理执行子智能体。这让你能在关键环节使用强大模型，在批量搜索环节使用更快速且经济的模型。
+
+- **兼容 OpenAI 接口**：支持任何兼容 OpenAI 的 API 端点。只需设置 `BASE_URL`，即可无缝对接 OpenAI、Azure OpenAI、Ollama、vLLM 或其他服务商。
+
+## 📁 文件结构
+
+```text
+deep-research/
+├── src/
+│   ├── agent.py              # 编排器定义
+│   ├── prompts.py            # 五个智能体的系统提示词
+│   ├── tools.py              # tavily_search, think_tool, request_approval
+│   ├── llm.py                # ChatOpenAI 模型实例
+│   ├── config.py             # 环境变量加载与限制配置
+│   └── subagents/
+│       ├── research_agent.py
+│       ├── scoping_agent.py
+│       ├── verification_agent.py
+│       └── report_agent.py
+├── .env.example
+├── pyproject.toml
+└── langgraph.json
+```
+
+## 🚀 快速开始
+
+### 1. 前置条件
+
+- Python 3.12+
+- [Tavily API key](https://tavily.com)
+- 兼容 OpenAI 的 API 密钥及端点
+
+### 2. 安装
+
+```bash
+# 使用 uv (推荐)
+uv sync
+
+# 或使用 pip
+pip install .
+```
+
+### 3. 配置
+
+将 `.env.example` 复制为 `.env` 并填写相关凭据：
+
+```env
+API_KEY=your-api-key-here
+BASE_URL=https://api.openai.com/v1        # 任何兼容 OpenAI 的端点
+MAIN_MODEL_ID=gpt-4o                      # 编排器模型
+SUBAGENT_MODEL_ID=gpt-4o-mini            # 研究/验证/报告模型
+TAVILY_API_KEY=tvly-your-key-here
+```
+
+### 4. 运行
+
+```bash
+langgraph dev
+```
+
+系统启动后将等待输入研究查询。提交任何问题后，流水线将端到端运行，并在范围界定阶段暂停一次，等待您批准研究简报。
+
+## 输出文件说明
+
+每次研究会话都会在工作目录生成一系列结构化的 Markdown 文件：
+
+| 文件 | 描述 |
+| :--- | :--- |
+| `/research_request.md` | 原始用户问题（原文） |
+| `/research_brief.md` | 界定后的简报，包含子问题和成功标准 |
+| `/research_findings/<topic>.md` | 各研究智能体针对子话题的调研结果 |
+| `/research_verification.md` | 覆盖范围审计和质量评分 |
+| `/final_report.md` | 最终合成的报告，包含文中引用 |
+
+English version: [README.md](./README.md)

@@ -5,9 +5,21 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "click>=8.0.0",
+    "deepagents>=0.4.5",
+    "langchain>=1.2.10",
+    "langchain-openai>=1.1.10",
+    "langchain-tavily>=0.2.17",
+    "langgraph-cli[inmem]>=0.4.14",
+    "markdownify>=1.2.2",
     "openai>=2.26.0",
     "python-dotenv>=1.2.2",
+    "rich>=14.3.3",
+    "tavily-python>=0.7.22",
 ]
+
+[project.scripts]
+deep-research = "src.cli:main"
 
 [[tool.uv.index]]
 name = "tuna"

@@ -13,3 +13,6 @@ wheels/
 .env
 .env.local
 .env.*.local
+
+# Langraph api files
+.langgraph_api/
