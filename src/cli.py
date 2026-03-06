@@ -1,0 +1,187 @@
+"""Rich CLI for the Deep Research agent."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+from uuid import uuid4
+
+import click
+from langgraph.types import Command
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.panel import Panel
+from rich.prompt import Prompt
+from rich.table import Table
+from rich.text import Text
+
+
+console = Console()
+
+
+def _normalize_content(content: Any) -> str:
+    """Convert LangChain/LangGraph message content into displayable text."""
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, list):
+        chunks: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                chunks.append(item)
+            elif isinstance(item, dict):
+                if "text" in item:
+                    chunks.append(str(item["text"]))
+                elif "content" in item:
+                    chunks.append(str(item["content"]))
+        return "\n".join(chunk for chunk in chunks if chunk.strip())
+
+    return str(content)
+
+
+def _extract_final_answer(result: dict[str, Any]) -> str:
+    """Extract the latest assistant message from graph state."""
+    messages = result.get("messages", [])
+    for message in reversed(messages):
+        if isinstance(message, dict) and message.get("role") in {"assistant", "ai"}:
+            return _normalize_content(message.get("content", ""))
+        msg_type = getattr(message, "type", None)
+        if msg_type in {"assistant", "ai"}:
+            return _normalize_content(getattr(message, "content", ""))
+    return ""
+
+
+def _extract_interrupt_payload(interrupt_obj: Any) -> dict[str, Any]:
+    """Get payload from LangGraph interrupt wrappers."""
+    payload = getattr(interrupt_obj, "value", interrupt_obj)
+    if isinstance(payload, dict):
+        return payload
+    return {"message": str(payload)}
+
+
+def _render_banner() -> None:
+    title = Text("Deep Research CLI", style="bold white")
+    subtitle = Text("Multi-agent research workflow powered by Deep Agents", style="cyan")
+    console.print(Panel.fit(f"{title}\n{subtitle}", border_style="bright_blue", padding=(1, 2)))
+
+
+def _render_session_info(thread_id: str, query: str, output_dir: Path) -> None:
+    table = Table(show_header=False, box=None, pad_edge=False)
+    table.add_column(style="bold cyan", width=12)
+    table.add_column(style="white")
+    table.add_row("Thread ID", thread_id)
+    table.add_row("Start Time", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    table.add_row("Query", query)
+    table.add_row("Output Dir", str(output_dir))
+    console.print(Panel(table, title="Session", border_style="cyan"))
+
+
+def _request_approval(interrupt_payload: dict[str, Any]) -> dict[str, Any]:
+    message = interrupt_payload.get("message", "Agent requested approval.")
+    action = interrupt_payload.get("action", "Review and decide")
+
+    console.print(
+        Panel(
+            Markdown(str(message)),
+            title=f"[bold yellow]Approval Required[/bold yellow] - {action}",
+            border_style="yellow",
+        )
+    )
+
+    approved = Prompt.ask("Approve? (y/n)", choices=["y", "n"], default="y")
+    if approved == "y":
+        return {"approved": True}
+
+    reason = Prompt.ask("Rejection reason", default="Need revision")
+    return {"approved": False, "reason": reason}
+
+
+def _render_output_files(working_dir: Path) -> None:
+    tracked_paths = [
+        "research_request.md",
+        "research_brief.md",
+        "research_verification.md",
+        "final_report.md",
+    ]
+    findings_dir = working_dir / "research_findings"
+
+    table = Table(title="Generated Files", border_style="green")
+    table.add_column("Path", style="bold")
+    table.add_column("Size", justify="right")
+
+    found = False
+    for rel in tracked_paths:
+        path = working_dir / rel
+        if path.exists() and path.is_file():
+            found = True
+            table.add_row(rel, f"{path.stat().st_size} B")
+
+    if findings_dir.exists() and findings_dir.is_dir():
+        for file in sorted(findings_dir.glob("*.md")):
+            found = True
+            rel_path = file.relative_to(working_dir)
+            table.add_row(str(rel_path), f"{file.stat().st_size} B")
+
+    if found:
+        console.print(table)
+
+
+@click.command(context_settings={"help_option_names": ["-h", "--help"]})
+@click.argument("query", required=False)
+@click.option("--thread-id", default=None, help="Session thread ID for resume/continuation.")
+@click.option("--plain", is_flag=True, help="Render final answer as plain text instead of Markdown.")
+def main(query: str | None, thread_id: str | None, plain: bool) -> None:
+    """Run Deep Research from the terminal with a Rich interface."""
+    _render_banner()
+
+    user_query = query or Prompt.ask("What would you like to research?")
+    session_thread_id = thread_id or f"research-{uuid4().hex[:8]}"
+    try:
+        from src import agent as agent_module
+    except Exception as exc:
+        console.print(
+            Panel(
+                f"[bold red]Failed to initialize agent:[/bold red]\n{exc}",
+                title="Startup Error",
+                border_style="red",
+            )
+        )
+        raise SystemExit(1) from exc
+
+    agent = agent_module.agent
+    output_dir = Path(getattr(agent_module, "WORKING_DIR", Path.cwd()))
+    _render_session_info(session_thread_id, user_query, output_dir)
+
+    config = {"configurable": {"thread_id": session_thread_id}}
+    graph_input: dict[str, Any] | Command = {"messages": [{"role": "user", "content": user_query}]}
+
+    while True:
+        with console.status("[cyan]Running research workflow...[/cyan]", spinner="dots"):
+            result = agent.invoke(graph_input, config=config)
+
+        interrupts = result.get("__interrupt__", [])
+        if not interrupts:
+            break
+
+        interrupt_payload = _extract_interrupt_payload(interrupts[0])
+        approval = _request_approval(interrupt_payload)
+        graph_input = Command(resume=approval)
+
+    final_answer = _extract_final_answer(result).strip()
+    if not final_answer:
+        final_answer = "Workflow completed, but no assistant message was returned."
+
+    console.print()
+    console.print(Panel("Research Completed", border_style="green", style="bold green"))
+    if plain:
+        console.print(final_answer)
+    else:
+        console.print(Panel(Markdown(final_answer), title="Final Answer", border_style="bright_blue"))
+
+    _render_output_files(output_dir)
+
+
+if __name__ == "__main__":
+    main()
+

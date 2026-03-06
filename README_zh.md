@@ -130,22 +130,45 @@ TAVILY_API_KEY=tvly-your-key-here
 
 ### 4. 运行
 
+推荐直接使用 Rich CLI：
+
+```bash
+deep-research "请研究 2026 年美国 AI 芯片出口管制最新变化"
+```
+交互模式：
+
+```bash
+deep-research
+```
+常用参数：
+
+```bash
+deep-research --thread-id my-session "你的问题"
+deep-research --plain "你的问题"
+```
+--thread-id 用于续跑/延续同一会话，--plain 用于纯文本输出最终答案。
+
+如果你更偏好 LangGraph 开发模式，也可以继续使用：
+
 ```bash
 langgraph dev
 ```
-
-系统启动后将等待输入研究查询。提交任何问题后，流水线将端到端运行，并在范围界定阶段暂停一次，等待您批准研究简报。
+流程会在范围界定阶段暂停一次等待审批，审批后继续生成研究产物。
 
 ## 输出文件说明
 
-每次研究会话都会在工作目录生成一系列结构化的 Markdown 文件：
+每次研究会话都会在 `research/` 目录下生成一系列结构化的 Markdown 文件：
 
 | 文件 | 描述 |
 | :--- | :--- |
-| `/research_request.md` | 原始用户问题（原文） |
-| `/research_brief.md` | 界定后的简报，包含子问题和成功标准 |
-| `/research_findings/<topic>.md` | 各研究智能体针对子话题的调研结果 |
-| `/research_verification.md` | 覆盖范围审计和质量评分 |
-| `/final_report.md` | 最终合成的报告，包含文中引用 |
+| `research/research_request.md` | 原始用户问题（原文） |
+| `research/research_brief.md` | 界定后的简报，包含子问题和成功标准 |
+| `research/research_findings/<topic>.md` | 各研究智能体针对子话题的调研结果 |
+| `research/research_verification.md` | 覆盖范围审计和质量评分 |
+| `research/final_report.md` | 最终合成的报告，包含文中引用 |
 
 English version: [README.md](./README.md)
+
+
+
+

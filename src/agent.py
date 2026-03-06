@@ -41,7 +41,8 @@ INSTRUCTIONS = (
     + SUBAGENT_DELEGATION_INSTRUCTIONS.format(**_format_kwargs)
 )
 
-WORKING_DIR = Path.cwd()
+WORKING_DIR = Path.cwd() / "research"
+WORKING_DIR.mkdir(exist_ok=True)
 
 # Create the agent
 agent = create_deep_agent(

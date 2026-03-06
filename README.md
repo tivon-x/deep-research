@@ -130,23 +130,46 @@ TAVILY_API_KEY=tvly-your-key-here
 
 ### 4. Run
 
+Recommended: run the Rich CLI directly:
+
+```bash
+deep-research "Research the latest 2026 changes in U.S. AI chip export controls"
+```
+Interactive mode:
+
+```bash
+deep-research
+```
+Common options:
+
+```bash
+deep-research --thread-id my-session "Your query"
+deep-research --plain "Your query"
+```
+--thread-id resumes/continues a session, and --plain prints the final answer as plain text.
+
+If you prefer LangGraph development mode, you can still run:
+
 ```bash
 langgraph dev
 ```
-
-The system will launch and wait for a research query. Submit any question and the pipeline runs end-to-end, pausing once at the scoping stage for your approval of the research brief.
+The workflow pauses once at scoping for approval, then continues to generate research artifacts.
 
 ## Output Files
 
-Each research session produces a set of structured markdown files in the working directory:
+Each research session produces a set of structured markdown files under the `research/` directory:
 
 | File | Description |
 | :--- | :--- |
-| `/research_request.md` | Original user question (verbatim) |
-| `/research_brief.md` | Scoped brief with sub-questions and success criteria |
-| `/research_findings/<topic>.md` | Per-topic findings from each Research Agent |
-| `/research_verification.md` | Coverage audit and quality ratings |
-| `/final_report.md` | Final synthesized report with inline citations |
+| `research/research_request.md` | Original user question (verbatim) |
+| `research/research_brief.md` | Scoped brief with sub-questions and success criteria |
+| `research/research_findings/<topic>.md` | Per-topic findings from each Research Agent |
+| `research/research_verification.md` | Coverage audit and quality ratings |
+| `research/final_report.md` | Final synthesized report with inline citations |
 
 ---
 中文版: [README.zh-CN.md](./README.zh-CN.md)
+
+
+
+
