@@ -46,7 +46,7 @@ The Scoping Agent breaks the topic into 2–5 focused sub-questions. It pauses f
 The Orchestrator analyzes the brief to determine the required parallelization. It scales from a single task for simple topics up to a configurable maximum (default 3) for complex subjects.
 
 ### Step 4 — Execute Research (Parallel)
-Each sub-question is handled by an independent Research Agent. These agents perform up to 5 Tavily searches, fetch full webpage content in markdown, and save their findings to the `/research_findings/` directory.
+Each sub-question is handled by an independent Research Agent. These agents fetch full webpage content in markdown and save findings to `/research_findings/`. Search calls are tracked by middleware with a configurable hard cap (`RESEARCH_SEARCH_TOOL_LIMIT`, default `15`).
 
 ### Step 5 — Verify
 A dedicated Verification Agent audits the findings. It checks for coverage gaps and rates the research as `COMPLETE`, `NEEDS_MINOR_ADDITIONS`, or `NEEDS_MAJOR_REWORK`.
@@ -125,7 +125,7 @@ API_KEY=your-api-key-here
 BASE_URL=https://api.openai.com/v1        # any OpenAI-compatible endpoint
 MAIN_MODEL_ID=gpt-4o                      # orchestrator model
 SUBAGENT_MODEL_ID=gpt-4o-mini            # research/verification/report model
-TAVILY_API_KEY=tvly-your-key-here
+TAVILY_API_KEY=tvly-your-key-here`r`nRESEARCH_SEARCH_TOOL_LIMIT=15          # optional: max tavily_search calls per research-agent task
 ```
 
 ### 4. Run
@@ -169,6 +169,7 @@ Each research session produces a set of structured markdown files under the `res
 
 ---
 中文版: [README.zh-CN.md](./README.zh-CN.md)
+
 
 
 

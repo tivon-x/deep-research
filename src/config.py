@@ -21,3 +21,20 @@ if not MAIN_MODEL_ID or not API_KEY or not BASE_URL:
 # Limits
 max_concurrent_research_units = 3
 max_researcher_iterations = 3
+
+
+def _get_positive_int_from_env(var_name: str, default: int) -> int:
+    raw_value = os.getenv(var_name)
+    if raw_value is None:
+        return default
+
+    try:
+        value = int(raw_value)
+    except ValueError:
+        return default
+
+    return value if value > 0 else default
+
+
+# Search tool call limit per research-agent run
+research_search_tool_limit = _get_positive_int_from_env("RESEARCH_SEARCH_TOOL_LIMIT", 15)

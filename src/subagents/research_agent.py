@@ -5,6 +5,8 @@ from src.prompts import (
 )
 from src.tools import tavily_search, think_tool
 from src.llm import research_model
+from src.config import research_search_tool_limit
+from src.middleware import SearchUsageLimitMiddleware
 
 
 # Get current date
@@ -16,5 +18,6 @@ research_subagent = {
     "description": "Delegate research to the sub-agent researcher. Only give this researcher one topic at a time.",
     "system_prompt": RESEARCHER_INSTRUCTIONS.format(date=current_date),
     "tools": [tavily_search, think_tool],
+    "middleware": [SearchUsageLimitMiddleware(max_calls=research_search_tool_limit)],
     "model": research_model,
 }

@@ -46,7 +46,7 @@ Deep Research 遵循严格的 8 步执行流水线，以确保研究的深度和
 编排器分析研究简报以确定所需的并行度。系统会根据主题复杂度动态扩展，从简单的单任务模式到复杂主题的多个并行任务（默认最多 3 个）。
 
 ### 第 4 步：执行研究 (Research)
-每个子问题由独立的系统研究员处理。智能体最多执行 5 次 Tavily 搜索，获取完整的 Markdown 格式网页内容，并将发现保存到 `/research_findings/` 目录。
+每个子问题由独立的系统研究员处理。智能体会抓取完整的 Markdown 格式网页内容并保存到 `/research_findings/`。搜索调用由中间件计数并设置硬上限（`RESEARCH_SEARCH_TOOL_LIMIT`，默认 `15`）。
 
 ### 第 5 步：质量验证 (Verify)
 专门的验证智能体会对调研结果进行审计。它负责检查覆盖范围的缺失，并将研究质量评定为 `COMPLETE`（完成）、`NEEDS_MINOR_ADDITIONS`（需要少量补充）或 `NEEDS_MAJOR_REWORK`（需要重大重做）。
@@ -126,6 +126,7 @@ BASE_URL=https://api.openai.com/v1        # 任何兼容 OpenAI 的端点
 MAIN_MODEL_ID=gpt-4o                      # 编排器模型
 SUBAGENT_MODEL_ID=gpt-4o-mini            # 研究/验证/报告模型
 TAVILY_API_KEY=tvly-your-key-here
+RESEARCH_SEARCH_TOOL_LIMIT=15          # 可选：每个 research-agent 任务的 tavily_search 最大调用次数
 ```
 
 ### 4. 运行
