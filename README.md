@@ -12,6 +12,7 @@ The system moves beyond simple search-and-summarize loops by treating research a
 - **Orchestration**: LangChain + LangGraph
 - **Intelligence**: LangChain OpenAI (supports any OpenAI-compatible API)
 - **Search**: Tavily Search API (for high-signal web data and markdown conversion)
+- **MCP Integration**: `langchain-mcp-adapters` (optional, for database/knowledge-base/internal systems)
 - **Interface**: Rich CLI for structured terminal feedback
 
 ## 🏗️ Architecture
@@ -46,7 +47,7 @@ The Scoping Agent breaks the topic into 2–5 focused sub-questions. It pauses f
 The Orchestrator analyzes the brief to determine the required parallelization. It scales from a single task for simple topics up to a configurable maximum (default 3) for complex subjects.
 
 ### Step 4 — Execute Research (Parallel)
-Each sub-question is handled by an independent Research Agent. These agents fetch full webpage content in markdown and save findings to `/research_findings/`. Search calls are tracked by middleware with a configurable hard cap (`RESEARCH_SEARCH_TOOL_LIMIT`, default `15`).
+Each sub-question is handled by an independent Research Agent. By default it uses Tavily web search; when MCP is configured and loaded successfully, it can also use MCP tools for internal data sources. Findings are saved to `/research_findings/`. Search calls are tracked by middleware with a configurable hard cap (`RESEARCH_SEARCH_TOOL_LIMIT`, default `15`).
 
 ### Step 5 — Verify
 A dedicated Verification Agent audits the findings. It checks for coverage gaps and rates the research as `COMPLETE`, `NEEDS_MINOR_ADDITIONS`, or `NEEDS_MAJOR_REWORK`.
@@ -74,6 +75,8 @@ The Orchestrator performs a final read-through to ensure the user's original que
 
 - **Search + Full Content**: Instead of relying on search snippets, the `tavily_search` tool fetches full webpage content and converts it to markdown, giving Research Agents substantially richer material to work with.
 
+- **Optional MCP Data Sources**: The research subagent can load MCP tools from a JSON config file. MCP prompt guidance is injected only when MCP tools are actually available, preventing prompt noise in web-only runs.
+
 - **Multi-Model Architecture**: A powerful model drives the reasoning-heavy Orchestrator; multiple models handle the execution agents. This lets you use a powerful model where it matters and a faster/cheaper model for bulk search work.
 
 - **OpenAI-Compatible Model Flexibility**: Works with any OpenAI-compatible endpoint — OpenAI, Azure OpenAI, Ollama, vLLM, or any other provider — by simply setting `BASE_URL`.
@@ -94,6 +97,7 @@ deep-research/
 │       ├── verification_agent.py
 │       └── report_agent.py
 ├── .env.example
+├── mcp_config.example.json
 ├── pyproject.toml
 └── langgraph.json
 ```
@@ -125,8 +129,17 @@ MAIN_MODEL_ID=gpt-4o                      # orchestrator model
 SUBAGENT_MODEL_ID=gpt-4o-mini            # research/verification/report model
 TAVILY_API_KEY=tvly-your-key-here
 RESEARCH_SEARCH_TOOL_LIMIT=15          # optional: max tavily_search calls per research-agent task
+MCP_CONFIG_FILE=mcp_config.json        # optional: MCP server config file
 ```
 
+Optional MCP setup:
+
+1. Copy `mcp_config.example.json` to `mcp_config.json`.
+2. Fill `mcp_servers` and `mcp_capabilities`.
+3. Start the CLI. It will show an `MCP Configuration` panel:
+   - `enabled`: MCP tools loaded and usable
+   - `configured but load failed`: config exists but MCP failed to load (prompt MCP guidance stays off)
+   - `disabled`: no MCP config provided
 ### 4. Run
 
 Recommended (no packaging required):
@@ -172,4 +185,5 @@ The CLI now persists the final report from state to local disk at the end of a r
 
 ---
 中文版: [README_zh.md](./README_zh.md)
+
 

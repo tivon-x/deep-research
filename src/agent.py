@@ -18,7 +18,7 @@ from src.prompts import (
 from src.tools import think_tool
 from src.config import max_concurrent_research_units, max_researcher_iterations
 from src.llm import main_model
-from src.subagents.research_agent import research_subagent
+from src.subagents.research_agent import MCP_STATUS as RESEARCH_MCP_STATUS, research_subagent
 from src.subagents.scoping_agent import scoping_subagent
 from src.subagents.verification_agent import verification_subagent
 from src.subagents.report_agent import report_subagent
@@ -53,4 +53,7 @@ agent = create_deep_agent(
     checkpointer=MemorySaver(), # Comment out this line of code if you are using a langraph cli.
     backend=lambda runtime: StateBackend(runtime),
 )
+
+
+MCP_STATUS = RESEARCH_MCP_STATUS
 

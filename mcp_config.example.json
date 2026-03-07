@@ -1,0 +1,11 @@
+{
+  "mcp_servers": {
+    "example_docs": {
+      "transport": "http",
+      "url": "http://localhost:8000/mcp"
+    }
+  },
+  "mcp_capabilities": [
+    "example_docs: Search internal documentation and return cited passages."
+  ]
+}

@@ -12,6 +12,7 @@ Deep Research 是一个多智能体系统，旨在自主对任何主题进行高
 - **编排**: LangChain + LangGraph
 - **智能**: LangChain OpenAI（支持任何兼容 OpenAI 的 API）
 - **搜索**: Tavily Search API（用于获取高质量网页数据并进行 Markdown 转换）
+- **MCP 集成**: `langchain-mcp-adapters`（可选，用于数据库/知识库/内部系统）
 - **界面**: 基于 Rich 的命令行界面（CLI），提供结构化的终端反馈
 
 ## 🏗️ 系统架构
@@ -74,6 +75,8 @@ Deep Research 遵循严格的 8 步执行流水线，以确保研究的深度和
 
 - **搜索与完整内容获取**：系统不仅依赖搜索摘要，`tavily_search` 工具还会抓取完整的网页内容并转换为 Markdown，为研究智能体提供更丰富的素材。
 
+- **可选 MCP 数据源**：research 子智能体可从 JSON 配置文件加载 MCP 工具。只有在 MCP 工具实际可用时才会注入 MCP 提示词，避免在纯 Web 模式下引入噪声。
+
 - **多模型架构**：强模型驱动推理密集的编排器；多种模型处理执行子智能体。这让你能在关键环节使用强大模型，在批量搜索环节使用更快速且经济的模型。
 
 - **兼容 OpenAI 接口**：支持任何兼容 OpenAI 的 API 端点。只需设置 `BASE_URL`，即可无缝对接 OpenAI、Azure OpenAI、Ollama、vLLM 或其他服务商。
@@ -94,6 +97,7 @@ deep-research/
 │       ├── verification_agent.py
 │       └── report_agent.py
 ├── .env.example
+├── mcp_config.example.json
 ├── pyproject.toml
 └── langgraph.json
 ```
@@ -125,8 +129,17 @@ MAIN_MODEL_ID=gpt-4o                      # 编排器模型
 SUBAGENT_MODEL_ID=gpt-4o-mini            # 研究/验证/报告模型
 TAVILY_API_KEY=tvly-your-key-here
 RESEARCH_SEARCH_TOOL_LIMIT=15          # 可选：每个 research-agent 任务的 tavily_search 最大调用次数
+MCP_CONFIG_FILE=mcp_config.json        # 可选：MCP 服务配置文件
 ```
 
+可选 MCP 配置：
+
+1. 将 `mcp_config.example.json` 复制为 `mcp_config.json`。
+2. 填写 `mcp_servers` 和 `mcp_capabilities`。
+3. 启动 CLI 后会显示 `MCP Configuration` 面板：
+   - `enabled`：MCP 工具加载成功并可用
+   - `configured but load failed`：已配置但加载失败（提示词中的 MCP 指引保持关闭）
+   - `disabled`：未提供 MCP 配置
 ### 4. 运行
 
 推荐（无需安装成库）：
@@ -171,4 +184,5 @@ CLI 现已在任务完成后将最终报告从 state 落盘：
 | `research/final_report.md` | CLI 结束时写入本地磁盘 |
 
 English version: [README.md](./README.md)
+
 

@@ -289,14 +289,14 @@ Follow these steps:
    - Does this answer the question?
    - What is still missing?
    - Should I search again or synthesize?
-5. **Stop when you can answer confidently** — do not over-search
+5. **Stop when you can answer confidently** - do not over-search
 6. **Write findings** to the specified output file
 </ResearchProcess>
 
 <SearchBudget>
-- Simple question: 2–3 searches maximum
-- Complex question: 4–5 searches maximum
-- Hard stop: 5 searches total — synthesize what you have after that
+- Simple question: 2-3 searches maximum
+- Complex question: 4-5 searches maximum
+- Hard stop: 5 searches total - synthesize what you have after that
 - Stop early if: you have 3+ good sources OR last 2 searches returned redundant info
 </SearchBudget>
 
@@ -304,7 +304,7 @@ Follow these steps:
 - Research ONLY what is asked in your specific question
 - If your instruction says "do not cover X", skip all searches related to X
 - If the brief marks something as "out of scope", skip it
-- Focus beats breadth — a thorough answer to one question beats a shallow answer to many
+- Focus beats breadth - a thorough answer to one question beats a shallow answer to many
 </ScopeRules>
 
 <OutputFormat>
@@ -315,7 +315,7 @@ Use this structure:
 ## Research Findings: [Question Title]
 
 ### Summary
-[2–3 sentence answer to the question]
+[2-3 sentence answer to the question]
 
 ### Key Findings
 
@@ -326,7 +326,7 @@ Use this structure:
 [Finding 3...]
 
 ### Gaps and Limitations
-[What could not be found or verified — be honest about what's missing]
+[What could not be found or verified - be honest about what's missing]
 
 ### Sources
 [1] Title: URL
@@ -335,6 +335,21 @@ Use this structure:
 
 Return a brief summary of what you found to the Orchestrator after saving the file.
 </OutputFormat>
+"""
+
+RESEARCHER_MCP_GUIDANCE = """\
+
+<MCPGuidance>
+Additional MCP tools are available for this run.
+
+Capabilities:
+{mcp_capabilities}
+
+Guidance:
+- Use MCP tools first when the assigned question matches these capabilities.
+- If MCP tools fail or are out of scope, fall back to tavily_search.
+- In final findings, clearly indicate whether evidence comes from MCP or Web.
+</MCPGuidance>
 """
 
 
@@ -499,3 +514,5 @@ Direct list with explanation per item (no intro needed):
 TASK_DESCRIPTION_PREFIX = """Delegate a task to a specialized sub-agent with isolated context. Available agents for delegation are:
 {other_agents}
 """
+
+

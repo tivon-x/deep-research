@@ -66,6 +66,48 @@ def _render_banner() -> None:
     console.print(Panel.fit(f"{title}\n{subtitle}", border_style="bright_blue", padding=(1, 2)))
 
 
+
+def _render_mcp_status(agent_module: Any) -> None:
+    mcp_status = getattr(agent_module, "MCP_STATUS", None)
+    if not isinstance(mcp_status, dict):
+        return
+
+    table = Table(show_header=False, box=None, pad_edge=False)
+    table.add_column(style="bold cyan", width=14)
+    table.add_column(style="white")
+
+    enabled = bool(mcp_status.get("enabled"))
+    server_count = int(mcp_status.get("server_count", 0))
+    tool_count = int(mcp_status.get("tool_count", 0))
+    config_error = str(mcp_status.get("config_error", "")).strip()
+
+    if enabled:
+        status_text = "enabled"
+    elif server_count > 0 and config_error:
+        status_text = "configured but load failed"
+    elif server_count > 0:
+        status_text = "configured (no tools loaded)"
+    else:
+        status_text = "disabled"
+
+    table.add_row("MCP Status", status_text)
+    table.add_row("MCP Servers", str(server_count))
+    table.add_row("MCP Tools", str(tool_count))
+
+    prompt_guidance = bool(mcp_status.get("prompt_guidance_enabled"))
+    table.add_row("Prompt MCP", "on" if prompt_guidance else "off")
+
+    capabilities = str(mcp_status.get("capabilities", "")).strip()
+    if capabilities:
+        table.add_row("Capabilities", capabilities)
+
+    if config_error:
+        table.add_row("Load Error", config_error)
+
+    border_style = "green" if enabled else "yellow"
+    console.print(Panel(table, title="MCP Configuration", border_style=border_style))
+
+
 def _render_session_info(thread_id: str, query: str, output_dir: Path) -> None:
     table = Table(show_header=False, box=None, pad_edge=False)
     table.add_column(style="bold cyan", width=12)
@@ -211,6 +253,7 @@ def main(query: str | None, thread_id: str | None, plain: bool) -> None:
     agent = agent_module.agent
     output_dir = Path(getattr(agent_module, "WORKING_DIR", Path.cwd()))
     _render_session_info(session_thread_id, user_query, output_dir)
+    _render_mcp_status(agent_module)
 
     config = {"configurable": {"thread_id": session_thread_id}}
     graph_input: dict[str, Any] | Command = {"messages": [{"role": "user", "content": user_query}]}
@@ -262,3 +305,7 @@ def main(query: str | None, thread_id: str | None, plain: bool) -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+
