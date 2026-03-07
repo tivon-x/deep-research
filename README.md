@@ -1,6 +1,6 @@
 # Deep Research
 
-中文版: [README.zh-CN.md](./README.zh-CN.md)
+中文版: [README_zh.md](./README_zh.md)
 
 Deep Research is a multi-agent system designed to autonomously perform high-fidelity research on any subject. Built on the [Deep Agents](https://github.com/deepagents/deepagents) framework, it coordinates a specialized team of AI agents to plan, search, verify, and synthesize information into professional reports.
 
@@ -37,10 +37,10 @@ Deep Research follows a strict 8-step execution pipeline to ensure consistency a
 ```
 
 ### Step 1 — Plan
-The Orchestrator initializes the workspace, creates a task list via `write_todos`, and logs the original request to `/research_request.md`.
+The Orchestrator initializes a thread-scoped virtual workspace (StateBackend), creates a task list via `write_todos`, and logs the original request to `/research_request.md`.
 
 ### Step 2 — Scope
-The Scoping Agent breaks the topic into 2–5 focused sub-questions. It pauses for a **Human-in-the-Loop** interrupt to get sign-off on the research direction before executing any search tasks.
+The Scoping Agent breaks the topic into 2–5 focused sub-questions. It pauses for a **Human-in-the-Loop** interrupt to get sign-off on the research direction before executing any search tasks. In the Rich CLI, the pending approval is rendered as a dedicated `Pending Research Brief` panel so the reviewer can inspect the full brief before approving or rejecting.
 
 ### Step 3 — Decompose Research Tasks
 The Orchestrator analyzes the brief to determine the required parallelization. It scales from a single task for simple topics up to a configurable maximum (default 3) for complex subjects.
@@ -64,13 +64,13 @@ The Orchestrator performs a final read-through to ensure the user's original que
 
 - **Adaptive Task Decomposition**: The system dynamically scales the number of researchers based on topic complexity rather than using hardcoded thread counts. A narrow question gets one focused agent; a broad topic gets up to three working in parallel.
 
-- **Filesystem as Shared Memory**: All intermediate outputs — research brief, per-topic findings, verification report, final report — are persisted as markdown files. This makes the pipeline fully inspectable, resumable, and easy to debug mid-run.
+- **StateBackend as Shared Workspace**: Intermediate artifacts (`/research_brief.md`, `/research_findings/*`, `/research_verification.md`, `/final_report.md`) are stored in thread state rather than local disk. This avoids file collisions in multi-user/server deployments while preserving file-tool workflows.
 
 - **Stateless Subagent Design**: Every subagent call is self-contained. The Orchestrator passes complete context (sub-question, file paths, constraints) on each call, ensuring reliability and making individual agents trivially replaceable.
 
 - **Verification Gate**: No data makes it into the final report without passing a dedicated audit step. The Verification Agent checks coverage against the brief's sub-questions and flags unverified or contradicted claims before synthesis begins.
 
-- **Human-in-the-Loop Scoping**: Uses LangGraph interrupts (`request_approval`) to pause execution and get human sign-off on the Research Brief before any web searches begin — preventing wasted API calls on a misunderstood scope.
+- **Human-in-the-Loop Scoping**: Uses LangGraph interrupts (`request_approval`) to pause execution and get human sign-off on the Research Brief before any web searches begin — preventing wasted API calls on a misunderstood scope. The CLI surfaces both approval metadata and the full pending brief content for terminal review.
 
 - **Search + Full Content**: Instead of relying on search snippets, the `tavily_search` tool fetches full webpage content and converts it to markdown, giving Research Agents substantially richer material to work with.
 
@@ -125,7 +125,8 @@ API_KEY=your-api-key-here
 BASE_URL=https://api.openai.com/v1        # any OpenAI-compatible endpoint
 MAIN_MODEL_ID=gpt-4o                      # orchestrator model
 SUBAGENT_MODEL_ID=gpt-4o-mini            # research/verification/report model
-TAVILY_API_KEY=tvly-your-key-here`r`nRESEARCH_SEARCH_TOOL_LIMIT=15          # optional: max tavily_search calls per research-agent task
+TAVILY_API_KEY=tvly-your-key-here
+RESEARCH_SEARCH_TOOL_LIMIT=15          # optional: max tavily_search calls per research-agent task
 ```
 
 ### 4. Run
@@ -157,18 +158,17 @@ The workflow pauses once at scoping for approval, then continues to generate res
 
 ## Output Files
 
-Each research session produces a set of structured markdown files under the `research/` directory:
+With `StateBackend`, research artifacts are maintained in the current thread state (virtual filesystem paths like `/research_brief.md`).
 
-| File | Description |
+The CLI now persists the final report from state to local disk at the end of a run:
+
+| Artifact | Persistence |
 | :--- | :--- |
-| `research/research_request.md` | Original user question (verbatim) |
-| `research/research_brief.md` | Scoped brief with sub-questions and success criteria |
-| `research/research_findings/<topic>.md` | Per-topic findings from each Research Agent |
-| `research/research_verification.md` | Coverage audit and quality ratings |
-| `research/final_report.md` | Final synthesized report with inline citations |
+| `/research_request.md`, `/research_brief.md`, `/research_findings/<topic>.md`, `/research_verification.md`, `/final_report.md` | In thread state (`StateBackend`) |
+| `research/final_report.md` | Written to local disk by CLI after completion |
 
 ---
-中文版: [README.zh-CN.md](./README.zh-CN.md)
+中文版: [README_zh.md](./README_zh.md)
 
 
 

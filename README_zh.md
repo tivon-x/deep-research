@@ -37,10 +37,10 @@ Deep Research 遵循严格的 8 步执行流水线，以确保研究的深度和
 ```
 
 ### 第 1 步：规划 (Plan)
-编排器初始化工作区，通过 `write_todos` 创建任务列表，并将原始请求记录到 `/research_request.md`。
+编排器初始化线程级虚拟工作区（StateBackend），通过 `write_todos` 创建任务列表，并将原始请求记录到 `/research_request.md`。
 
 ### 第 2 步：界定范围 (Scope)
-范围界定智能体将主题分解为 2 到 5 个核心子问题。此时系统会触发 **人机协作 (Human-in-the-Loop)** 中断，在执行任何研究任务之前等待人工确认研究方向。
+范围界定智能体将主题分解为 2 到 5 个核心子问题。此时系统会触发 **人机协作 (Human-in-the-Loop)** 中断，在执行任何研究任务之前等待人工确认研究方向。Rich CLI 会以 `Pending Research Brief` 专用面板展示待审批简报，便于终端直接审阅并决定通过/拒绝。
 
 ### 第 3 步：分解研究任务 (Decompose)
 编排器分析研究简报以确定所需的并行度。系统会根据主题复杂度动态扩展，从简单的单任务模式到复杂主题的多个并行任务（默认最多 3 个）。
@@ -64,13 +64,13 @@ Deep Research 遵循严格的 8 步执行流水线，以确保研究的深度和
 
 - **自适应任务分解**：系统根据主题复杂度动态调整研究员数量，而非使用硬编码的线程数。针对具体问题使用单个智能体；而对宽泛主题，则调用多达三个智能体并行工作。
 
-- **文件系统即共享内存**：所有的中间产物——研究简报、子话题调研、验证报告、最终报告——都以 Markdown 文件形式持久化。这使得整个流水线完全可审计、可恢复，并且易于在中途调试。
+- **StateBackend 共享工作区**：中间产物（`/research_brief.md`、`/research_findings/*`、`/research_verification.md`、`/final_report.md`）保存在线程状态而不是本地磁盘。这样更适合服务端多用户部署，并可避免多次运行时的文件冲突。
 
 - **无状态子智能体设计**：每次子智能体调用都是自包含的。编排器在调用时传递完整的上下文（子问题、文件路径、约束条件），确保了系统的可靠性，并使单个智能体的替换变得非常简单。
 
 - **验证关卡**：所有数据在通过专门的审计步骤前不会进入最终报告。验证智能体会对照研究简报中的子问题检查覆盖情况，并在合成开始前标记未经验证或存在矛盾的观点。
 
-- **人机协作界定范围**：利用 LangGraph 的中断机制（`request_approval`）暂停执行，在搜索开始前获取人工对研究简报的确认，有效防止因理解偏差导致的 API 调用浪费。
+- **人机协作界定范围**：利用 LangGraph 的中断机制（`request_approval`）暂停执行，在搜索开始前获取人工对研究简报的确认，有效防止因理解偏差导致的 API 调用浪费。CLI 会同时展示审批元信息和完整待审批简报内容。
 
 - **搜索与完整内容获取**：系统不仅依赖搜索摘要，`tavily_search` 工具还会抓取完整的网页内容并转换为 Markdown，为研究智能体提供更丰富的素材。
 
@@ -158,15 +158,14 @@ langgraph dev
 
 ## 输出文件说明
 
-每次研究会话都会在 `research/` 目录下生成一系列结构化的 Markdown 文件：
+使用 `StateBackend` 时，研究过程文件保存在当前 thread 的状态中（虚拟路径，例如 `/research_brief.md`）。
 
-| 文件 | 描述 |
+CLI 现已在任务完成后将最终报告从 state 落盘：
+
+| 产物 | 持久化位置 |
 | :--- | :--- |
-| `research/research_request.md` | 原始用户问题（原文） |
-| `research/research_brief.md` | 界定后的简报，包含子问题和成功标准 |
-| `research/research_findings/<topic>.md` | 各研究智能体针对子话题的调研结果 |
-| `research/research_verification.md` | 覆盖范围审计和质量评分 |
-| `research/final_report.md` | 最终合成的报告，包含文中引用 |
+| `/research_request.md`、`/research_brief.md`、`/research_findings/<topic>.md`、`/research_verification.md`、`/final_report.md` | 线程状态（`StateBackend`） |
+| `research/final_report.md` | CLI 结束时写入本地磁盘 |
 
 English version: [README.md](./README.md)
 

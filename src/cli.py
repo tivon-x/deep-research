@@ -77,17 +77,42 @@ def _render_session_info(thread_id: str, query: str, output_dir: Path) -> None:
     console.print(Panel(table, title="Session", border_style="cyan"))
 
 
-def _request_approval(interrupt_payload: dict[str, Any]) -> dict[str, Any]:
-    message = interrupt_payload.get("message", "Agent requested approval.")
-    action = interrupt_payload.get("action", "Review and decide")
+def _split_approval_message(message: str) -> tuple[str, str]:
+    marker = "Please approve or reject:"
+    if marker in message:
+        prefix, body = message.split(marker, 1)
+        return prefix.strip(), body.strip()
+    return "", message.strip()
 
-    console.print(
-        Panel(
-            Markdown(str(message)),
-            title=f"[bold yellow]Approval Required[/bold yellow] - {action}",
-            border_style="yellow",
+
+def _request_approval(interrupt_payload: dict[str, Any]) -> dict[str, Any]:
+    message = str(interrupt_payload.get("message", "Agent requested approval."))
+    action = str(interrupt_payload.get("action", "Review and decide"))
+    payload_type = str(interrupt_payload.get("type", ""))
+
+    meta = Table(show_header=False, box=None, pad_edge=False)
+    meta.add_column(style="bold yellow", width=8)
+    meta.add_column(style="white")
+    meta.add_row("Action", action)
+    if payload_type:
+        meta.add_row("Type", payload_type)
+
+    console.print(Panel(meta, title="Approval Required", border_style="yellow"))
+
+    intro, body = _split_approval_message(message)
+    if intro:
+        console.print(Panel(Markdown(intro), border_style="yellow"))
+
+    if payload_type == "approval_request":
+        console.print(
+            Panel(
+                Markdown(body),
+                title="Pending Research Brief",
+                border_style="bright_magenta",
+            )
         )
-    )
+    else:
+        console.print(Panel(Markdown(message), border_style="yellow"))
 
     approved = Prompt.ask("Approve? (y/n)", choices=["y", "n"], default="y")
     if approved == "y":
@@ -95,6 +120,52 @@ def _request_approval(interrupt_payload: dict[str, Any]) -> dict[str, Any]:
 
     reason = Prompt.ask("Rejection reason", default="Need revision")
     return {"approved": False, "reason": reason}
+
+
+def _file_data_to_text(file_data: Any) -> str:
+    if isinstance(file_data, dict):
+        content = file_data.get("content")
+        if isinstance(content, list):
+            return "\n".join(str(line) for line in content)
+        if isinstance(content, str):
+            return content
+    return str(file_data)
+
+
+def _extract_state_files(
+    result: dict[str, Any],
+    agent: Any,
+    config: dict[str, Any],
+) -> dict[str, Any]:
+    files = result.get("files", {})
+    if isinstance(files, dict):
+        return files
+
+    state_snapshot = agent.get_state(config)
+    values = getattr(state_snapshot, "values", {})
+    if isinstance(values, dict):
+        snapshot_files = values.get("files", {})
+        if isinstance(snapshot_files, dict):
+            return snapshot_files
+
+    return {}
+
+
+def _persist_final_report(
+    result: dict[str, Any],
+    agent: Any,
+    config: dict[str, Any],
+    output_dir: Path,
+) -> Path | None:
+    state_files = _extract_state_files(result, agent, config)
+    final_report = state_files.get("/final_report.md")
+    if final_report is None:
+        return None
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "final_report.md"
+    output_path.write_text(_file_data_to_text(final_report), encoding="utf-8")
+    return output_path
 
 
 def _render_output_files(working_dir: Path) -> None:
@@ -172,6 +243,8 @@ def main(query: str | None, thread_id: str | None, plain: bool) -> None:
     if not final_answer:
         final_answer = "Workflow completed, but no assistant message was returned."
 
+    persisted_report_path = _persist_final_report(result, agent, config, output_dir)
+
     console.print()
     console.print(Panel("Research Completed", border_style="green", style="bold green"))
     if plain:
@@ -179,9 +252,25 @@ def main(query: str | None, thread_id: str | None, plain: bool) -> None:
     else:
         console.print(Panel(Markdown(final_answer), title="Final Answer", border_style="bright_blue"))
 
+    if persisted_report_path is not None:
+        console.print(
+            Panel(
+                f"Persisted state file to disk:\n[bold]{persisted_report_path}[/bold]",
+                title="Final Report Saved",
+                border_style="green",
+            )
+        )
+    else:
+        console.print(
+            Panel(
+                "No `/final_report.md` found in the current thread state.",
+                title="Final Report Not Found",
+                border_style="yellow",
+            )
+        )
+
     _render_output_files(output_dir)
 
 
 if __name__ == "__main__":
     main()
-

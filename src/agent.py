@@ -9,7 +9,7 @@ from pathlib import Path
 
 from deepagents import create_deep_agent
 from langgraph.checkpoint.memory import MemorySaver
-from deepagents.backends import FilesystemBackend
+from deepagents.backends import StateBackend
 
 from src.prompts import (
     RESEARCH_WORKFLOW_INSTRUCTIONS,
@@ -42,7 +42,6 @@ INSTRUCTIONS = (
 )
 
 WORKING_DIR = Path.cwd() / "research"
-WORKING_DIR.mkdir(exist_ok=True)
 
 # Create the agent
 agent = create_deep_agent(
@@ -52,5 +51,6 @@ agent = create_deep_agent(
     subagents=[research_subagent, scoping_subagent, verification_subagent, report_subagent],
     name="research",
     checkpointer=MemorySaver(), # Comment out this line of code if you are using a langraph cli.
-    backend=FilesystemBackend(root_dir=WORKING_DIR, virtual_mode=True)
+    backend=lambda runtime: StateBackend(runtime),
 )
+
