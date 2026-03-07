@@ -112,8 +112,6 @@ deep-research/
 # Using uv (recommended)
 uv sync
 
-# Or with pip
-pip install .
 ```
 
 ### 3. Configure
@@ -131,21 +129,26 @@ RESEARCH_SEARCH_TOOL_LIMIT=15          # optional: max tavily_search calls per r
 
 ### 4. Run
 
-Recommended: run the Rich CLI directly:
+Recommended (no packaging required):
 
 ```bash
-deep-research "Research the latest 2026 changes in U.S. AI chip export controls"
+python main.py "Research the latest 2026 changes in U.S. AI chip export controls"
+```
+Alternative direct module script run:
+
+```bash
+python src/cli.py "Research the latest 2026 changes in U.S. AI chip export controls"
 ```
 Interactive mode:
 
 ```bash
-deep-research
+python main.py
 ```
 Common options:
 
 ```bash
-deep-research --thread-id my-session "Your query"
-deep-research --plain "Your query"
+python main.py --thread-id my-session "Your query"
+python main.py --plain "Your query"
 ```
 --thread-id resumes/continues a session, and --plain prints the final answer as plain text.
 
@@ -169,8 +172,4 @@ The CLI now persists the final report from state to local disk at the end of a r
 
 ---
 中文版: [README_zh.md](./README_zh.md)
-
-
-
-
 

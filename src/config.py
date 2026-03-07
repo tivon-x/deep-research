@@ -1,6 +1,4 @@
 import os
-from dotenv import load_dotenv
-load_dotenv(override=True)  # Load environment variables from .env file
 
 
 # Configuration for the research agent and sub-agents
