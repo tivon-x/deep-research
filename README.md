@@ -40,7 +40,7 @@ Deep Research follows a strict 8-step execution pipeline to ensure consistency a
 The Orchestrator initializes the workspace, creates a task list via `write_todos`, and logs the original request to `/research_request.md`.
 
 ### Step 2 — Scope
-The Scoping Agent breaks the topic into 2–5 focused sub-questions. It pauses for a **Human-in-the-Loop** interrupt to get sign-off on the research direction before any API credits are spent.
+The Scoping Agent breaks the topic into 2–5 focused sub-questions. It pauses for a **Human-in-the-Loop** interrupt to get sign-off on the research direction before executing any search tasks.
 
 ### Step 3 — Decompose Research Tasks
 The Orchestrator analyzes the brief to determine the required parallelization. It scales from a single task for simple topics up to a configurable maximum (default 3) for complex subjects.
