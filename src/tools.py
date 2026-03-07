@@ -128,7 +128,7 @@ def request_approval(research_brief: str) -> str:
     approval = interrupt({
         "type": "approval_request",
         "action": "Review and approve/reject the research brief",
-        "message": f"Please approve or reject: \n\n{research_brief}",
+        "approval_item": research_brief
     })
 
     if approval.get("approved"):

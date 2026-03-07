@@ -75,19 +75,11 @@ def _render_session_info(thread_id: str, query: str, output_dir: Path) -> None:
     table.add_row("Query", query)
     table.add_row("Output Dir", str(output_dir))
     console.print(Panel(table, title="Session", border_style="cyan"))
-
-
-def _split_approval_message(message: str) -> tuple[str, str]:
-    marker = "Please approve or reject:"
-    if marker in message:
-        prefix, body = message.split(marker, 1)
-        return prefix.strip(), body.strip()
-    return "", message.strip()
-
+    
 
 def _request_approval(interrupt_payload: dict[str, Any]) -> dict[str, Any]:
-    message = str(interrupt_payload.get("message", "Agent requested approval."))
     action = str(interrupt_payload.get("action", "Review and decide"))
+    approval_item = str(interrupt_payload.get("approval_item", ""))
     payload_type = str(interrupt_payload.get("type", ""))
 
     meta = Table(show_header=False, box=None, pad_edge=False)
@@ -99,20 +91,16 @@ def _request_approval(interrupt_payload: dict[str, Any]) -> dict[str, Any]:
 
     console.print(Panel(meta, title="Approval Required", border_style="yellow"))
 
-    intro, body = _split_approval_message(message)
-    if intro:
-        console.print(Panel(Markdown(intro), border_style="yellow"))
+    intro = "Please approve or reject:"
+    console.print(Panel(Markdown(intro), border_style="yellow"))
 
-    if payload_type == "approval_request":
-        console.print(
-            Panel(
-                Markdown(body),
-                title="Pending Research Brief",
-                border_style="bright_magenta",
-            )
+    console.print(
+        Panel(
+            Markdown(approval_item),
+            title="Pending Research Brief",
+            border_style="bright_magenta",
         )
-    else:
-        console.print(Panel(Markdown(message), border_style="yellow"))
+    )
 
     approved = Prompt.ask("Approve? (y/n)", choices=["y", "n"], default="y")
     if approved == "y":
