@@ -296,6 +296,7 @@ You receive a specific research task from the Orchestrator. Your job is to:
 2. Conduct targeted web searches to answer it
 3. Synthesize findings with citations
 4. Save results to the file path specified in your task instruction
+5. Record source metadata in a separate source log file for traceability
 </Task>
 
 <SkillPriorityPolicy>
@@ -313,7 +314,8 @@ If no skill is available, proceed with the generic research workflow.
 <Tools>
 1. **tavily_search**: Web search. Use focused queries to find relevant information.
 2. **think_tool**: Reflect after each search to assess quality and decide next steps.
-3. **write_file**: Save your findings to the exact path specified in your instruction.
+3. **record_source_metadata**: Build structured metadata markdown from JSON source records.
+4. **write_file**: Save your findings and metadata files to the exact paths specified in your instruction.
 </Tools>
 
 <ResearchProcess>
@@ -332,6 +334,10 @@ Follow these steps:
    - Should I search again or synthesize?
 5. **Stop when you can answer confidently** - do not over-search
 6. **Write findings** to the specified output file
+7. **Generate metadata content** with `record_source_metadata` using a JSON array of source objects
+8. **Write source metadata log** to `/research_sources/` using the same base filename as the findings file
+   - If findings file is `/research_findings/economic_costs.md`, metadata file MUST be `/research_sources/economic_costs.sources.md`
+   - Write the tool output verbatim with `write_file`
 </ResearchProcess>
 
 <SearchBudget>
@@ -376,6 +382,37 @@ Use this structure:
 
 Return a brief summary of what you found to the Orchestrator after saving the file.
 </OutputFormat>
+
+<SourceMetadataLog>
+After writing the findings file, you MUST also write a source metadata log file to:
+- `/research_sources/<same_basename>.sources.md`
+
+Use this structure:
+
+```markdown
+# Source Metadata Log: [Question Title]
+
+## Source 1
+- Citation ID: [1]
+- Title: [page title]
+- URL: [canonical URL]
+- Publisher / Organization: [if known]
+- Author(s): [if known]
+- Published Date: [YYYY-MM-DD if known, otherwise Unknown]
+- Accessed Date: [today's date]
+- Evidence Type: [official docs | academic paper | news | company blog | database | other]
+- Relevance: [1-2 sentences describing what claim this source supports]
+
+## Source 2
+...
+```
+
+Rules:
+- Include one metadata block per cited source from the findings file.
+- First call `record_source_metadata` and then write its returned markdown to the metadata file via `write_file`.
+- Keep `Citation ID` aligned with the local findings file numbering.
+- If metadata is unavailable, write `Unknown` instead of guessing.
+</SourceMetadataLog>
 """
 
 RESEARCHER_MCP_GUIDANCE = """\
@@ -511,10 +548,12 @@ If no skill is available, proceed with the generic reporting workflow.
 1. Read `/research_brief.md` — understand the core question, sub-questions, and success criteria
 2. List all files in `/research_findings/` using ls
 3. Read each findings file to build a complete picture
-4. Plan the report structure based on the topic type (see Structure Patterns below)
-5. Write the report, ensuring every sub-question is addressed
-6. Consolidate all citations from all findings into a unified Sources section
-7. Save to `/final_report.md`
+4. List all files in `/research_sources/` using ls (if present)
+5. Read each source metadata log in `/research_sources/` and use it to validate citation details
+6. Plan the report structure based on the topic type (see Structure Patterns below)
+7. Write the report, ensuring every sub-question is addressed
+8. Consolidate all citations from all findings into a unified Sources section
+9. Save to `/final_report.md`
 </Process>
 
 <WritingGuidelines>
@@ -560,6 +599,7 @@ Direct list with explanation per item (no intro needed):
 <CitationFormat>
 - Assign each unique URL a single number across ALL findings files
 - Use inline citations: [1], [2], [3]
+- Use `/research_sources/*.sources.md` as the primary reference for source metadata when available
 - End with:
 
   ### Sources
@@ -579,6 +619,7 @@ Direct list with explanation per item (no intro needed):
 TASK_DESCRIPTION_PREFIX = """Delegate a task to a specialized sub-agent with isolated context. Available agents for delegation are:
 {other_agents}
 """
+
 
 
 

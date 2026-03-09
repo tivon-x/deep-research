@@ -5,7 +5,7 @@ from src.llm import research_model
 from src.mcp import MCP_STATUS, append_mcp_guidance, get_mcp_tools
 from src.middleware import SearchUsageLimitMiddleware
 from src.prompts import RESEARCHER_INSTRUCTIONS
-from src.tools import tavily_search, think_tool
+from src.tools import record_source_metadata, tavily_search, think_tool
 
 
 # Get current date
@@ -22,7 +22,7 @@ def build_research_subagent(skills: list[str] | None = None) -> dict:
         "name": "research-agent",
         "description": "Delegate research to the sub-agent researcher. Only give this researcher one topic at a time.",
         "system_prompt": _build_research_prompt(),
-        "tools": [tavily_search, think_tool, *get_mcp_tools()],
+        "tools": [tavily_search, think_tool, record_source_metadata, *get_mcp_tools()],
         "middleware": [SearchUsageLimitMiddleware(max_calls=research_search_tool_limit)],
         "model": research_model,
     }
