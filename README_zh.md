@@ -79,6 +79,8 @@ Deep Research 遵循严格的 8 步执行流水线，以确保研究的深度和
 
 - **多模型架构**：强模型驱动推理密集的编排器；多种模型处理执行子智能体。这让你能在关键环节使用强大模型，在批量搜索环节使用更快速且经济的模型。
 
+- **按角色加载领域技能（Skills）**：支持按 `orchestrator/scoping/research/verification/report` 五个角色配置领域技能。启用后，CLI 会把角色 `SKILL.md` 注入 StateBackend 虚拟文件系统，并在执行中以技能指引优先于通用研究流程。
+
 - **兼容 OpenAI 接口**：支持任何兼容 OpenAI 的 API 端点。只需设置 `BASE_URL`，即可无缝对接 OpenAI、Azure OpenAI、Ollama、vLLM 或其他服务商。
 
 ## 📁 文件结构
@@ -88,6 +90,7 @@ deep-research/
 ├── src/
 │   ├── agent.py              # 编排器定义
 │   ├── prompts.py            # 五个智能体的系统提示词
+│   ├── skills.py             # 技能发现、校验与状态注入辅助逻辑
 │   ├── tools.py              # tavily_search, think_tool, request_approval
 │   ├── llm.py                # ChatOpenAI 模型实例
 │   ├── config.py             # 环境变量加载与限制配置
@@ -99,6 +102,7 @@ deep-research/
 ├── .env.example
 ├── mcp_config.example.json
 ├── pyproject.toml
+├── DOMAIN_SKILL_AUTHORING_GUIDE.md  # 领域角色技能编写指南
 └── langgraph.json
 ```
 
@@ -157,13 +161,18 @@ python src/cli.py "请研究 2026 年美国 AI 芯片出口管制最新变化"
 ```bash
 python main.py
 ```
+交互模式下会先让你选择技能域（也可选择 `None`），然后再输入研究问题。
+
 常用参数：
 
 ```bash
 python main.py --thread-id my-session "你的问题"
 python main.py --plain "你的问题"
+python main.py --skills finance "你的问题"
 ```
---thread-id 用于续跑/延续同一会话，--plain 用于纯文本输出最终答案。
+--thread-id 用于续跑/延续同一会话，--plain 用于纯文本输出最终答案，--skills 用于加载一个领域技能目录（`./skills/<skill>/<role>/`）。
+在 `StateBackend` 下，这些本地 `SKILL.md` 会在调用时自动注入到线程状态的 `/skills/<skill>/<role>/SKILL.md`。
+如何编写领域角色技能，请参考 DOMAIN_SKILL_AUTHORING_GUIDE.md。
 
 如果你更偏好 LangGraph 开发模式，也可以继续使用：
 
@@ -184,5 +193,6 @@ CLI 现已在任务完成后将最终报告从 state 落盘：
 | `research/final_report.md` | CLI 结束时写入本地磁盘 |
 
 English version: [README.md](./README.md)
+
 
 

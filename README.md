@@ -79,6 +79,8 @@ The Orchestrator performs a final read-through to ensure the user's original que
 
 - **Multi-Model Architecture**: A powerful model drives the reasoning-heavy Orchestrator; multiple models handle the execution agents. This lets you use a powerful model where it matters and a faster/cheaper model for bulk search work.
 
+- **Role-Based Domain Skills**: Supports domain skills per role (`orchestrator/scoping/research/verification/report`). When a domain skill is enabled, the CLI seeds role `SKILL.md` files into the StateBackend virtual filesystem and the agent stack applies skill-first guidance before generic workflow defaults.
+
 - **OpenAI-Compatible Model Flexibility**: Works with any OpenAI-compatible endpoint — OpenAI, Azure OpenAI, Ollama, vLLM, or any other provider — by simply setting `BASE_URL`.
 
 ## 📁 File Structure
@@ -88,6 +90,7 @@ deep-research/
 ├── src/
 │   ├── agent.py              # Orchestrator definition
 │   ├── prompts.py            # System prompts for all five agents
+│   ├── skills.py             # Skill discovery, validation, and state seeding helpers
 │   ├── tools.py              # tavily_search, think_tool, request_approval
 │   ├── llm.py                # ChatOpenAI model instances
 │   ├── config.py             # Environment variable loading + limits
@@ -99,6 +102,7 @@ deep-research/
 ├── .env.example
 ├── mcp_config.example.json
 ├── pyproject.toml
+├── DOMAIN_SKILL_AUTHORING_GUIDE.md  # Guide for writing domain-specific role skills
 └── langgraph.json
 ```
 
@@ -157,13 +161,18 @@ Interactive mode:
 ```bash
 python main.py
 ```
+Interactive mode now lets you choose a skill domain first (or select `None`), then enter your query.
+
 Common options:
 
 ```bash
 python main.py --thread-id my-session "Your query"
 python main.py --plain "Your query"
+python main.py --skills finance "Your query"
 ```
---thread-id resumes/continues a session, and --plain prints the final answer as plain text.
+--thread-id resumes/continues a session, --plain prints the final answer as plain text, and --skills loads one domain skill from `./skills/<skill>/<role>/`.
+With `StateBackend`, those local `SKILL.md` files are seeded into the thread state under `/skills/<skill>/<role>/SKILL.md` at invoke time.
+See DOMAIN_SKILL_AUTHORING_GUIDE.md for how to design and write domain-specific role skills.
 
 If you prefer LangGraph development mode, you can still run:
 
@@ -185,5 +194,6 @@ The CLI now persists the final report from state to local disk at the end of a r
 
 ---
 中文版: [README_zh.md](./README_zh.md)
+
 
 

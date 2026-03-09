@@ -16,6 +16,8 @@ from rich.prompt import Prompt
 from rich.table import Table
 from rich.text import Text
 
+from src.skills import resolve_role_skills, resolve_skill_seed_files
+
 
 console = Console()
 
@@ -108,16 +110,75 @@ def _render_mcp_status(agent_module: Any) -> None:
     console.print(Panel(table, title="MCP Configuration", border_style=border_style))
 
 
-def _render_session_info(thread_id: str, query: str, output_dir: Path) -> None:
+def _render_session_info(thread_id: str, query: str, output_dir: Path, skill: str | None) -> None:
     table = Table(show_header=False, box=None, pad_edge=False)
     table.add_column(style="bold cyan", width=12)
     table.add_column(style="white")
     table.add_row("Thread ID", thread_id)
     table.add_row("Start Time", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     table.add_row("Query", query)
+    table.add_row("Skill", skill or "None")
     table.add_row("Output Dir", str(output_dir))
     console.print(Panel(table, title="Session", border_style="cyan"))
     
+
+
+def _build_skill_activation_message(skill: str, resolved_role_skills: dict[str, list[str]]) -> str:
+    role_lines: list[str] = []
+    for role, paths in resolved_role_skills.items():
+        for path in paths:
+            role_lines.append(f"- {role}: {path}")
+    role_paths_text = "\n".join(role_lines) if role_lines else "- (none)"
+
+    return (
+        "Skill activation required before research:\n"
+        f"Domain skill: {skill}\n"
+        "Available role skill directories:\n"
+        f"{role_paths_text}\n\n"
+        "Instructions:\n"
+        "1. Before starting Step 1, load and apply orchestrator skills from the available paths.\n"
+        "2. Whenever delegating to a subagent, explicitly instruct that subagent to load and apply its role-specific skill directory before executing the task.\n"
+        "3. After skill activation, continue the normal deep-research workflow for the next user request."
+    )
+
+
+def _discover_skill_options() -> list[str]:
+    skills_root = Path.cwd() / "skills"
+    if not skills_root.exists() or not skills_root.is_dir():
+        return []
+
+    options: list[str] = []
+    for child in sorted(skills_root.iterdir(), key=lambda p: p.name.lower()):
+        if not child.is_dir():
+            continue
+        try:
+            role_map = resolve_role_skills(child.name)
+        except ValueError:
+            continue
+        if any(role_map.values()):
+            options.append(child.name)
+    return options
+
+
+def _prompt_skill_selection() -> str | None:
+    options = _discover_skill_options()
+    if not options:
+        return None
+
+    table = Table(title="Available Skills", border_style="cyan")
+    table.add_column("No.", style="bold cyan", justify="right")
+    table.add_column("Domain", style="white")
+    table.add_row("0", "None")
+    for idx, domain in enumerate(options, start=1):
+        table.add_row(str(idx), domain)
+    console.print(table)
+
+    choices = [str(i) for i in range(0, len(options) + 1)]
+    selection = Prompt.ask("Select skill domain", choices=choices, default="0")
+    if selection == "0":
+        return None
+    return options[int(selection) - 1]
+
 
 def _request_approval(interrupt_payload: dict[str, Any]) -> dict[str, Any]:
     action = str(interrupt_payload.get("action", "Review and decide"))
@@ -231,10 +292,14 @@ def _render_output_files(working_dir: Path) -> None:
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})
 @click.argument("query", required=False)
 @click.option("--thread-id", default=None, help="Session thread ID for resume/continuation.")
+@click.option("--skills", "skill", default=None, help="Load one domain skill, e.g. --skills finance.")
 @click.option("--plain", is_flag=True, help="Render final answer as plain text instead of Markdown.")
-def main(query: str | None, thread_id: str | None, plain: bool) -> None:
+def main(query: str | None, thread_id: str | None, skill: str | None, plain: bool) -> None:
     """Run Deep Research from the terminal with a Rich interface."""
     _render_banner()
+
+    if skill is None and query is None:
+        skill = _prompt_skill_selection()
 
     user_query = query or Prompt.ask("What would you like to research?")
     session_thread_id = thread_id or f"research-{uuid4().hex[:8]}"
@@ -250,13 +315,58 @@ def main(query: str | None, thread_id: str | None, plain: bool) -> None:
         )
         raise SystemExit(1) from exc
 
-    agent = agent_module.agent
+    try:
+        resolved_role_skills = resolve_role_skills(skill)
+    except ValueError as exc:
+        console.print(
+            Panel(
+                str(exc),
+                title="Invalid Skill",
+                border_style="red",
+            )
+        )
+        raise SystemExit(1) from exc
+    loaded_roles: list[str] = []
+    if skill:
+        loaded_roles = [role for role, paths in resolved_role_skills.items() if paths]
+        if not loaded_roles:
+            console.print(
+                Panel(
+                    (
+                        f"No skill directories found for '{skill}'.\n"
+                        "Expected paths like: ./skills/<skill>/<role>/"
+                    ),
+                    title="Skill Not Found",
+                    border_style="yellow",
+                )
+            )
+        else:
+            role_list = ", ".join(sorted(loaded_roles))
+            console.print(
+                Panel(
+                    f"Loaded domain skill '{skill}' for roles: {role_list}",
+                    title="Skills",
+                    border_style="green",
+                )
+            )
+
+    skill_seed_files = resolve_skill_seed_files(skill)
+    agent = agent_module.build_agent(skill=skill)
     output_dir = Path(getattr(agent_module, "WORKING_DIR", Path.cwd()))
-    _render_session_info(session_thread_id, user_query, output_dir)
+    _render_session_info(session_thread_id, user_query, output_dir, skill)
     _render_mcp_status(agent_module)
 
     config = {"configurable": {"thread_id": session_thread_id}}
-    graph_input: dict[str, Any] | Command = {"messages": [{"role": "user", "content": user_query}]}
+    messages: list[dict[str, str]] = [{"role": "user", "content": user_query}]
+    if skill and loaded_roles:
+        messages = [
+            {"role": "user", "content": _build_skill_activation_message(skill, resolved_role_skills)},
+            {"role": "user", "content": user_query},
+        ]
+
+    graph_input: dict[str, Any] | Command = {"messages": messages}
+    if skill_seed_files:
+        graph_input["files"] = skill_seed_files
 
     while True:
         with console.status("[cyan]Running research workflow...[/cyan]", spinner="dots"):
@@ -305,6 +415,14 @@ def main(query: str | None, thread_id: str | None, plain: bool) -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+
 
 
 

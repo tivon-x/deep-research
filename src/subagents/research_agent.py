@@ -91,12 +91,19 @@ def _build_research_prompt() -> str:
 _mcp_client, _mcp_tools = _initialize_mcp_tools()
 atexit.register(_shutdown_mcp_client)
 
-# Create research sub-agent
-research_subagent = {
-    "name": "research-agent",
-    "description": "Delegate research to the sub-agent researcher. Only give this researcher one topic at a time.",
-    "system_prompt": _build_research_prompt(),
-    "tools": [tavily_search, think_tool, *_mcp_tools],
-    "middleware": [SearchUsageLimitMiddleware(max_calls=research_search_tool_limit)],
-    "model": research_model,
-}
+
+def build_research_subagent(skills: list[str] | None = None) -> dict:
+    subagent = {
+        "name": "research-agent",
+        "description": "Delegate research to the sub-agent researcher. Only give this researcher one topic at a time.",
+        "system_prompt": _build_research_prompt(),
+        "tools": [tavily_search, think_tool, *_mcp_tools],
+        "middleware": [SearchUsageLimitMiddleware(max_calls=research_search_tool_limit)],
+        "model": research_model,
+    }
+    if skills:
+        subagent["skills"] = skills
+    return subagent
+
+
+research_subagent = build_research_subagent()
