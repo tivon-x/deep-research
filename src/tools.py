@@ -4,7 +4,6 @@ This module provides search and content processing utilities for the research ag
 using Tavily for URL discovery and fetching full webpage content.
 """
 
-import json
 from datetime import datetime
 from typing import Any
 
@@ -14,6 +13,8 @@ from langgraph.types import interrupt
 from markdownify import markdownify
 from tavily import TavilyClient
 from typing_extensions import Annotated, Literal
+
+from src.schemas import SourceMetadataRequest
 
 tavily_client = TavilyClient()
 
@@ -124,64 +125,21 @@ def think_tool(reflection: str) -> str:
 
 
 @tool(parse_docstring=True)
-def record_source_metadata(question_title: str, sources_json: str) -> str:
-    """Generate a normalized source metadata markdown document from structured JSON input.
+def record_source_metadata(request: SourceMetadataRequest) -> str:
+    """Generate a normalized source metadata markdown document from structured source metadata.
 
     Use this tool to build a standards-compliant metadata log for research sources.
     The returned markdown should be written to `/research_sources/<name>.sources.md` using `write_file`.
 
     Args:
-        question_title: Human-readable title for this research question
-        sources_json: JSON array string. Each item should include: citation_id, title, url.
-            Optional keys: publisher, authors, published_date, evidence_type, relevance.
+        request: Structured request containing the research question title and
+            a non-empty list of source metadata objects. Each source must include
+            title and url, and may also include citation_id, publisher, authors,
+            published_date, evidence_type, and relevance.
 
     Returns:
-        Markdown text for the source metadata log file on success.
-        On validation failure, returns a machine-readable JSON error string.
+        Markdown text for the source metadata log file.
     """
-
-    def _error(
-        error_code: str,
-        message: str,
-        *,
-        source_index: int | None = None,
-        fields: list[str] | None = None,
-        details: str | None = None,
-    ) -> str:
-        payload: dict[str, Any] = {
-            "ok": False,
-            "error_code": error_code,
-            "message": message,
-        }
-        if source_index is not None:
-            payload["source_index"] = source_index
-        if fields:
-            payload["fields"] = fields
-        if details is not None:
-            payload["details"] = details
-        return json.dumps(payload, ensure_ascii=False)
-
-    try:
-        raw_sources = json.loads(sources_json)
-    except json.JSONDecodeError as e:
-        return _error(
-            "INVALID_JSON",
-            "sources_json must be a JSON array string.",
-            details=str(e),
-        )
-
-    if not isinstance(raw_sources, list):
-        return _error(
-            "INVALID_TOP_LEVEL_TYPE",
-            "sources_json must decode to a JSON array.",
-            details=f"got={type(raw_sources).__name__}",
-        )
-
-    if not raw_sources:
-        return _error(
-            "EMPTY_SOURCES",
-            "sources_json must contain at least one source object.",
-        )
 
     today = datetime.now().strftime("%Y-%m-%d")
 
@@ -191,37 +149,18 @@ def record_source_metadata(question_title: str, sources_json: str) -> str:
         text = str(value).strip()
         return text if text else default
 
-    title_header = _txt(question_title, default="Untitled Question")
+    title_header = request.question_title
     lines: list[str] = [f"# Source Metadata Log: {title_header}", ""]
 
-    for index, item in enumerate(raw_sources, start=1):
-        if not isinstance(item, dict):
-            return _error(
-                "INVALID_SOURCE_TYPE",
-                "Each source entry must be a JSON object.",
-                source_index=index,
-                details=f"got={type(item).__name__}",
-            )
-
-        missing_fields = [
-            field for field in ("title", "url") if _txt(item.get(field), default="") == ""
-        ]
-        if missing_fields:
-            return _error(
-                "MISSING_REQUIRED_FIELDS",
-                "Source is missing required fields.",
-                source_index=index,
-                fields=missing_fields,
-            )
-
-        citation_id = _txt(item.get("citation_id"), default=f"[{index}]")
-        title = _txt(item.get("title"))
-        url = _txt(item.get("url"))
-        publisher = _txt(item.get("publisher"))
-        authors = _txt(item.get("authors"))
-        published_date = _txt(item.get("published_date"))
-        evidence_type = _txt(item.get("evidence_type"), default="other")
-        relevance = _txt(item.get("relevance"))
+    for index, item in enumerate(request.sources, start=1):
+        citation_id = _txt(item.citation_id, default=f"[{index}]")
+        title = _txt(item.title)
+        url = _txt(item.url)
+        publisher = _txt(item.publisher)
+        authors = _txt(item.authors)
+        published_date = _txt(item.published_date)
+        evidence_type = _txt(item.evidence_type, default="other")
+        relevance = _txt(item.relevance)
 
         lines.extend(
             [
