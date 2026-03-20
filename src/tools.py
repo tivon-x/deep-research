@@ -4,6 +4,9 @@ This module provides search and content processing utilities for the research ag
 using Tavily for URL discovery and fetching full webpage content.
 """
 
+from __future__ import annotations
+
+import asyncio
 from datetime import datetime
 from typing import Any
 
@@ -18,31 +21,75 @@ from src.schemas import SourceMetadataRequest
 
 tavily_client = TavilyClient()
 
+DEFAULT_HTTP_TIMEOUT = 10.0
+DEFAULT_FETCH_CONCURRENCY = 5
+_FETCH_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/91.0.4472.124 Safari/537.36"
+    )
+}
 
-def fetch_webpage_content(url: str, timeout: float = 10.0) -> str:
+
+async def fetch_webpage_content(
+    client: httpx.AsyncClient,
+    url: str,
+    timeout: float = DEFAULT_HTTP_TIMEOUT,
+) -> str:
     """Fetch and convert webpage content to markdown.
 
     Args:
+        client: Shared async HTTP client
         url: URL to fetch
         timeout: Request timeout in seconds
 
     Returns:
         Webpage content as markdown
     """
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    }
-
     try:
-        response = httpx.get(url, headers=headers, timeout=timeout)
+        response = await client.get(url, headers=_FETCH_HEADERS, timeout=timeout)
         response.raise_for_status()
         return markdownify(response.text)
-    except Exception as e:
-        return f"Error fetching content from {url}: {str(e)}"
+    except Exception as exc:
+        return f"Error fetching content from {url}: {exc}"
+
+
+async def _search_tavily(
+    query: str,
+    max_results: int,
+    topic: Literal["general", "news", "finance"],
+) -> dict[str, Any]:
+    return await asyncio.to_thread(
+        tavily_client.search,
+        query,
+        max_results=max_results,
+        topic=topic,
+    )
+
+
+async def _format_search_result(
+    client: httpx.AsyncClient,
+    semaphore: asyncio.Semaphore,
+    result: dict[str, Any],
+) -> str:
+    url = str(result["url"])
+    title = str(result["title"])
+
+    async with semaphore:
+        content = await fetch_webpage_content(client, url)
+
+    return f"""## {title}
+**URL:** {url}
+
+{content}
+
+---
+"""
 
 
 @tool(parse_docstring=True)
-def tavily_search(
+async def tavily_search(
     query: str,
     max_results: Annotated[int, InjectedToolArg] = 1,
     topic: Annotated[
@@ -61,32 +108,22 @@ def tavily_search(
     Returns:
         Formatted search results with full webpage content
     """
-    # Use Tavily to discover URLs
-    search_results = tavily_client.search(
-        query,
+    search_results = await _search_tavily(
+        query=query,
         max_results=max_results,
         topic=topic,
     )
 
-    # Fetch full content for each URL
-    result_texts = []
-    for result in search_results.get("results", []):
-        url = result["url"]
-        title = result["title"]
+    results = search_results.get("results", [])
+    semaphore = asyncio.Semaphore(DEFAULT_FETCH_CONCURRENCY)
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        result_texts = await asyncio.gather(
+            *[
+                _format_search_result(client, semaphore, result)
+                for result in results
+            ]
+        )
 
-        # Fetch webpage content
-        content = fetch_webpage_content(url)
-
-        result_text = f"""## {title}
-**URL:** {url}
-
-{content}
-
----
-"""
-        result_texts.append(result_text)
-
-    # Format final response
     response = f"""🔍 Found {len(result_texts)} result(s) for '{query}':
 
 {chr(10).join(result_texts)}"""
@@ -95,7 +132,7 @@ def tavily_search(
 
 
 @tool(parse_docstring=True)
-def think_tool(reflection: str) -> str:
+async def think_tool(reflection: str) -> str:
     """Tool for strategic reflection on research progress and decision-making.
 
     Use this tool after each search to analyze results and plan next steps systematically.
@@ -125,7 +162,7 @@ def think_tool(reflection: str) -> str:
 
 
 @tool(parse_docstring=True)
-def record_source_metadata(request: SourceMetadataRequest) -> str:
+async def record_source_metadata(request: SourceMetadataRequest) -> str:
     """Generate a normalized source metadata markdown document from structured source metadata.
 
     Use this tool to build a standards-compliant metadata log for research sources.
@@ -182,7 +219,7 @@ def record_source_metadata(request: SourceMetadataRequest) -> str:
 
 
 @tool(parse_docstring=True)
-def request_approval(research_brief: str) -> str:
+async def request_approval(research_brief: str) -> str:
     """
     Request human approval for your research brief before finishing.
     

@@ -1,5 +1,3 @@
-import atexit
-import asyncio
 import json
 import logging
 import os
@@ -90,17 +88,32 @@ async def _open_mcp_client_and_tools() -> tuple[Any, list[Any]]:
     return client, tools
 
 
-def _initialize_mcp_tools() -> tuple[Any, list[Any]]:
+async def initialize_mcp_tools() -> tuple[Any, list[Any]]:
     if not mcp_servers:
+        MCP_STATUS["enabled"] = False
+        MCP_STATUS["tool_count"] = 0
+        MCP_STATUS["config_error"] = ""
         return None, []
 
+    global _mcp_client, _mcp_tools
+
+    if _mcp_client is not None:
+        return _mcp_client, list(_mcp_tools)
+
     try:
-        client, tools = asyncio.run(_open_mcp_client_and_tools())
+        client, tools = await _open_mcp_client_and_tools()
+        _mcp_client = client
+        _mcp_tools = list(tools)
         MCP_STATUS["enabled"] = True
-        MCP_STATUS["tool_count"] = len(tools)
+        MCP_STATUS["tool_count"] = len(_mcp_tools)
+        MCP_STATUS["config_error"] = ""
         logger.info("MCP tools loaded: %d", len(tools))
-        return client, tools
+        return _mcp_client, list(_mcp_tools)
     except Exception as exc:  # pragma: no cover - depends on runtime MCP availability
+        _mcp_client = None
+        _mcp_tools = []
+        MCP_STATUS["enabled"] = False
+        MCP_STATUS["tool_count"] = 0
         MCP_STATUS["config_error"] = str(exc)
         logger.warning("Failed to load MCP tools: %s", exc)
         return None, []
@@ -112,13 +125,21 @@ async def _close_mcp_client() -> None:
     await _mcp_client.__aexit__(None, None, None)
 
 
-def _shutdown_mcp_client() -> None:
+async def shutdown_mcp_client() -> None:
+    global _mcp_client, _mcp_tools
+
     if _mcp_client is None:
         return
+
     try:
-        asyncio.run(_close_mcp_client())
+        await _close_mcp_client()
     except Exception as exc:  # pragma: no cover - shutdown best effort
         logger.debug("Failed to close MCP client cleanly: %s", exc)
+    finally:
+        _mcp_client = None
+        _mcp_tools = []
+        MCP_STATUS["enabled"] = False
+        MCP_STATUS["tool_count"] = 0
 
 
 def get_mcp_tools() -> list[Any]:
@@ -132,7 +153,3 @@ def append_mcp_guidance(base_prompt: str) -> str:
 
     MCP_STATUS["prompt_guidance_enabled"] = False
     return base_prompt
-
-
-_mcp_client, _mcp_tools = _initialize_mcp_tools()
-atexit.register(_shutdown_mcp_client)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,7 @@ from rich.prompt import Prompt
 from rich.table import Table
 from rich.text import Text
 
+from src.mcp import initialize_mcp_tools, shutdown_mcp_client
 from src.skills import resolve_role_skills, resolve_skill_seed_files
 
 
@@ -223,7 +225,7 @@ def _file_data_to_text(file_data: Any) -> str:
     return str(file_data)
 
 
-def _extract_state_files(
+async def _extract_state_files(
     result: dict[str, Any],
     agent: Any,
     config: dict[str, Any],
@@ -232,7 +234,7 @@ def _extract_state_files(
     if isinstance(files, dict):
         return files
 
-    state_snapshot = agent.get_state(config)
+    state_snapshot = await agent.aget_state(config)
     values = getattr(state_snapshot, "values", {})
     if isinstance(values, dict):
         snapshot_files = values.get("files", {})
@@ -242,13 +244,13 @@ def _extract_state_files(
     return {}
 
 
-def _persist_final_report(
+async def _persist_final_report(
     result: dict[str, Any],
     agent: Any,
     config: dict[str, Any],
     output_dir: Path,
 ) -> Path | None:
-    state_files = _extract_state_files(result, agent, config)
+    state_files = await _extract_state_files(result, agent, config)
     final_report = state_files.get("/final_report.md")
     if final_report is None:
         return None
@@ -289,12 +291,12 @@ def _render_output_files(working_dir: Path) -> None:
         console.print(table)
 
 
-@click.command(context_settings={"help_option_names": ["-h", "--help"]})
-@click.argument("query", required=False)
-@click.option("--thread-id", default=None, help="Session thread ID for resume/continuation.")
-@click.option("--skills", "skill", default=None, help="Load one domain skill, e.g. --skills finance.")
-@click.option("--plain", is_flag=True, help="Render final answer as plain text instead of Markdown.")
-def main(query: str | None, thread_id: str | None, skill: str | None, plain: bool) -> None:
+async def run_cli(
+    query: str | None,
+    thread_id: str | None,
+    skill: str | None,
+    plain: bool,
+) -> None:
     """Run Deep Research from the terminal with a Rich interface."""
     _render_banner()
 
@@ -303,7 +305,9 @@ def main(query: str | None, thread_id: str | None, skill: str | None, plain: boo
 
     user_query = query or Prompt.ask("What would you like to research?")
     session_thread_id = thread_id or f"research-{uuid4().hex[:8]}"
+
     try:
+        await initialize_mcp_tools()
         from src import agent as agent_module
     except Exception as exc:
         console.print(
@@ -313,104 +317,117 @@ def main(query: str | None, thread_id: str | None, skill: str | None, plain: boo
                 border_style="red",
             )
         )
+        await shutdown_mcp_client()
         raise SystemExit(1) from exc
 
     try:
-        resolved_role_skills = resolve_role_skills(skill)
-    except ValueError as exc:
-        console.print(
-            Panel(
-                str(exc),
-                title="Invalid Skill",
-                border_style="red",
-            )
-        )
-        raise SystemExit(1) from exc
-    loaded_roles: list[str] = []
-    if skill:
-        loaded_roles = [role for role, paths in resolved_role_skills.items() if paths]
-        if not loaded_roles:
+        try:
+            resolved_role_skills = resolve_role_skills(skill)
+        except ValueError as exc:
             console.print(
                 Panel(
-                    (
-                        f"No skill directories found for '{skill}'.\n"
-                        "Expected paths like: ./skills/<skill>/<role>/"
-                    ),
-                    title="Skill Not Found",
-                    border_style="yellow",
+                    str(exc),
+                    title="Invalid Skill",
+                    border_style="red",
                 )
             )
+            raise SystemExit(1) from exc
+        loaded_roles: list[str] = []
+        if skill:
+            loaded_roles = [role for role, paths in resolved_role_skills.items() if paths]
+            if not loaded_roles:
+                console.print(
+                    Panel(
+                        (
+                            f"No skill directories found for '{skill}'.\n"
+                            "Expected paths like: ./skills/<skill>/<role>/"
+                        ),
+                        title="Skill Not Found",
+                        border_style="yellow",
+                    )
+                )
+            else:
+                role_list = ", ".join(sorted(loaded_roles))
+                console.print(
+                    Panel(
+                        f"Loaded domain skill '{skill}' for roles: {role_list}",
+                        title="Skills",
+                        border_style="green",
+                    )
+                )
+
+        skill_seed_files = resolve_skill_seed_files(skill)
+        agent = agent_module.build_agent(skill=skill)
+        output_dir = Path(getattr(agent_module, "WORKING_DIR", Path.cwd()))
+        _render_session_info(session_thread_id, user_query, output_dir, skill)
+        _render_mcp_status(agent_module)
+
+        config = {"configurable": {"thread_id": session_thread_id}}
+        messages: list[dict[str, str]] = [{"role": "user", "content": user_query}]
+        if skill and loaded_roles:
+            messages = [
+                {"role": "user", "content": _build_skill_activation_message(skill, resolved_role_skills)},
+                {"role": "user", "content": user_query},
+            ]
+
+        graph_input: dict[str, Any] | Command = {"messages": messages}
+        if skill_seed_files:
+            graph_input["files"] = skill_seed_files
+
+        while True:
+            with console.status("[cyan]Running research workflow...[/cyan]", spinner="dots"):
+                result = await agent.ainvoke(graph_input, config=config)
+
+            interrupts = result.get("__interrupt__", [])
+            if not interrupts:
+                break
+
+            interrupt_payload = _extract_interrupt_payload(interrupts[0])
+            approval = _request_approval(interrupt_payload)
+            graph_input = Command(resume=approval)
+
+        final_answer = _extract_final_answer(result).strip()
+        if not final_answer:
+            final_answer = "Workflow completed, but no assistant message was returned."
+
+        persisted_report_path = await _persist_final_report(result, agent, config, output_dir)
+
+        console.print()
+        console.print(Panel("Research Completed", border_style="green", style="bold green"))
+        if plain:
+            console.print(final_answer)
         else:
-            role_list = ", ".join(sorted(loaded_roles))
+            console.print(Panel(Markdown(final_answer), title="Final Answer", border_style="bright_blue"))
+
+        if persisted_report_path is not None:
             console.print(
                 Panel(
-                    f"Loaded domain skill '{skill}' for roles: {role_list}",
-                    title="Skills",
+                    f"Persisted state file to disk:\n[bold]{persisted_report_path}[/bold]",
+                    title="Final Report Saved",
                     border_style="green",
                 )
             )
-
-    skill_seed_files = resolve_skill_seed_files(skill)
-    agent = agent_module.build_agent(skill=skill)
-    output_dir = Path(getattr(agent_module, "WORKING_DIR", Path.cwd()))
-    _render_session_info(session_thread_id, user_query, output_dir, skill)
-    _render_mcp_status(agent_module)
-
-    config = {"configurable": {"thread_id": session_thread_id}}
-    messages: list[dict[str, str]] = [{"role": "user", "content": user_query}]
-    if skill and loaded_roles:
-        messages = [
-            {"role": "user", "content": _build_skill_activation_message(skill, resolved_role_skills)},
-            {"role": "user", "content": user_query},
-        ]
-
-    graph_input: dict[str, Any] | Command = {"messages": messages}
-    if skill_seed_files:
-        graph_input["files"] = skill_seed_files
-
-    while True:
-        with console.status("[cyan]Running research workflow...[/cyan]", spinner="dots"):
-            result = agent.invoke(graph_input, config=config)
-
-        interrupts = result.get("__interrupt__", [])
-        if not interrupts:
-            break
-
-        interrupt_payload = _extract_interrupt_payload(interrupts[0])
-        approval = _request_approval(interrupt_payload)
-        graph_input = Command(resume=approval)
-
-    final_answer = _extract_final_answer(result).strip()
-    if not final_answer:
-        final_answer = "Workflow completed, but no assistant message was returned."
-
-    persisted_report_path = _persist_final_report(result, agent, config, output_dir)
-
-    console.print()
-    console.print(Panel("Research Completed", border_style="green", style="bold green"))
-    if plain:
-        console.print(final_answer)
-    else:
-        console.print(Panel(Markdown(final_answer), title="Final Answer", border_style="bright_blue"))
-
-    if persisted_report_path is not None:
-        console.print(
-            Panel(
-                f"Persisted state file to disk:\n[bold]{persisted_report_path}[/bold]",
-                title="Final Report Saved",
-                border_style="green",
+        else:
+            console.print(
+                Panel(
+                    "No `/final_report.md` found in the current thread state.",
+                    title="Final Report Not Found",
+                    border_style="yellow",
+                )
             )
-        )
-    else:
-        console.print(
-            Panel(
-                "No `/final_report.md` found in the current thread state.",
-                title="Final Report Not Found",
-                border_style="yellow",
-            )
-        )
 
-    _render_output_files(output_dir)
+        _render_output_files(output_dir)
+    finally:
+        await shutdown_mcp_client()
+
+
+@click.command(context_settings={"help_option_names": ["-h", "--help"]})
+@click.argument("query", required=False)
+@click.option("--thread-id", default=None, help="Session thread ID for resume/continuation.")
+@click.option("--skills", "skill", default=None, help="Load one domain skill, e.g. --skills finance.")
+@click.option("--plain", is_flag=True, help="Render final answer as plain text instead of Markdown.")
+def main(query: str | None, thread_id: str | None, skill: str | None, plain: bool) -> None:
+    asyncio.run(run_cli(query=query, thread_id=thread_id, skill=skill, plain=plain))
 
 
 if __name__ == "__main__":

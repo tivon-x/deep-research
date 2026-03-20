@@ -140,13 +140,13 @@ MCP_CONFIG_FILE=mcp_config.json        # 可选：MCP 服务配置文件
 
 1. 将 `mcp_config.example.json` 复制为 `mcp_config.json`。
 2. 填写 `mcp_servers` 和 `mcp_capabilities`。
-3. 启动 CLI 后会显示 `MCP Configuration` 面板：
+3. 启动 CLI。系统会在启动阶段显式初始化 MCP，并显示 `MCP Configuration` 面板：
    - `enabled`：MCP 工具加载成功并可用
    - `configured but load failed`：已配置但加载失败（提示词中的 MCP 指引保持关闭）
    - `disabled`：未提供 MCP 配置
 ### 4. 运行
 
-推荐（无需安装成库）：
+推荐的 async-first 入口（无需安装成库）：
 
 ```bash
 python main.py "请研究 2026 年美国 AI 芯片出口管制最新变化"
@@ -171,7 +171,7 @@ python main.py --plain "你的问题"
 python main.py --skills finance "你的问题"
 ```
 --thread-id 用于续跑/延续同一会话，--plain 用于纯文本输出最终答案，--skills 用于加载一个领域技能目录（`./skills/<skill>/<role>/`）。
-在 `StateBackend` 下，这些本地 `SKILL.md` 会在调用时自动注入到线程状态的 `/skills/<skill>/<role>/SKILL.md`。
+在 `StateBackend` 下，这些本地 `SKILL.md` 会在异步调用时自动注入到线程状态的 `/skills/<skill>/<role>/SKILL.md`。
 如何编写领域角色技能，请参考 DOMAIN_SKILL_AUTHORING_GUIDE.md。
 
 如果你更偏好 LangGraph 开发模式，也可以继续使用：
@@ -180,6 +180,7 @@ python main.py --skills finance "你的问题"
 langgraph dev
 ```
 流程会在范围界定阶段暂停一次等待审批，审批后继续生成研究产物。
+Agent 构造仍保持同步，但执行、状态读取、外部网络 I/O 和 MCP 生命周期都已改为异步。
 
 ## 输出文件说明
 

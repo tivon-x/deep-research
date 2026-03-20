@@ -140,13 +140,13 @@ Optional MCP setup:
 
 1. Copy `mcp_config.example.json` to `mcp_config.json`.
 2. Fill `mcp_servers` and `mcp_capabilities`.
-3. Start the CLI. It will show an `MCP Configuration` panel:
+3. Start the CLI. It initializes MCP explicitly at startup and shows an `MCP Configuration` panel:
    - `enabled`: MCP tools loaded and usable
    - `configured but load failed`: config exists but MCP failed to load (prompt MCP guidance stays off)
    - `disabled`: no MCP config provided
 ### 4. Run
 
-Recommended (no packaging required):
+Recommended async-first entrypoint (no packaging required):
 
 ```bash
 python main.py "Research the latest 2026 changes in U.S. AI chip export controls"
@@ -171,7 +171,7 @@ python main.py --plain "Your query"
 python main.py --skills finance "Your query"
 ```
 --thread-id resumes/continues a session, --plain prints the final answer as plain text, and --skills loads one domain skill from `./skills/<skill>/<role>/`.
-With `StateBackend`, those local `SKILL.md` files are seeded into the thread state under `/skills/<skill>/<role>/SKILL.md` at invoke time.
+With `StateBackend`, those local `SKILL.md` files are seeded into the thread state under `/skills/<skill>/<role>/SKILL.md` at async invoke time.
 See DOMAIN_SKILL_AUTHORING_GUIDE.md for how to design and write domain-specific role skills.
 
 If you prefer LangGraph development mode, you can still run:
@@ -180,6 +180,7 @@ If you prefer LangGraph development mode, you can still run:
 langgraph dev
 ```
 The workflow pauses once at scoping for approval, then continues to generate research artifacts.
+Agent construction remains synchronous, but execution, state access, network I/O, and MCP lifecycle are asynchronous.
 
 ## Output Files
 

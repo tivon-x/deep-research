@@ -2,7 +2,8 @@ from datetime import datetime
 
 from src.config import research_search_tool_limit
 from src.llm import research_model
-from src.mcp import MCP_STATUS, append_mcp_guidance, get_mcp_tools
+from src.mcp import MCP_STATUS as RESEARCH_MCP_STATUS
+from src.mcp import append_mcp_guidance, get_mcp_tools
 from src.middleware import SearchUsageLimitMiddleware
 from src.prompts import RESEARCHER_INSTRUCTIONS
 from src.tools import record_source_metadata, tavily_search, think_tool
@@ -32,3 +33,4 @@ def build_research_subagent(skills: list[str] | None = None) -> dict:
 
 
 research_subagent = build_research_subagent()
+MCP_STATUS = RESEARCH_MCP_STATUS
