@@ -1,0 +1,124 @@
+- id: full_turn_remote_work
+  category: full_turn
+  input: Research the main benefits and risks of remote work for software engineering teams, and provide a balanced recommendation.
+  approval_mode: auto_approve
+  expectations:
+    must_interrupt_for_approval: true
+    required_tools_any_order:
+      - tavily_search
+    forbidden_tools: []
+    required_files:
+      - /research_request.md
+      - /research_brief.md
+      - /research_verification.md
+      - /final_report.md
+    verification_status_allowed:
+      - COMPLETE
+      - NEEDS_MINOR_ADDITIONS
+    final_report:
+      min_headings: 3
+      min_citations: 2
+      must_answer_user_question: true
+      report_must_include:
+        - recommendation
+    findings:
+      min_files: 1
+    budgets:
+      max_search_calls: 15
+  judge:
+    enabled: true
+    min_score: 3
+
+- id: full_turn_ai_export_controls
+  category: full_turn
+  input: Research the current operational implications of AI chip export controls for global semiconductor companies.
+  approval_mode: auto_approve
+  expectations:
+    must_interrupt_for_approval: true
+    required_tools_any_order:
+      - tavily_search
+    forbidden_tools: []
+    required_files:
+      - /research_request.md
+      - /research_brief.md
+      - /research_verification.md
+      - /final_report.md
+    verification_status_allowed:
+      - COMPLETE
+      - NEEDS_MINOR_ADDITIONS
+    final_report:
+      min_headings: 3
+      min_citations: 2
+      must_answer_user_question: true
+      report_must_include:
+        - export
+        - operational
+    findings:
+      min_files: 1
+    budgets:
+      max_search_calls: 15
+
+- id: full_turn_search_budget
+  category: full_turn
+  input: Research supply chain resilience practices for consumer hardware companies and keep the answer concise but sourced.
+  approval_mode: auto_approve
+  expectations:
+    must_interrupt_for_approval: true
+    required_tools_any_order:
+      - tavily_search
+    forbidden_tools: []
+    required_files:
+      - /research_request.md
+      - /research_brief.md
+      - /research_verification.md
+      - /final_report.md
+    verification_status_allowed:
+      - COMPLETE
+      - NEEDS_MINOR_ADDITIONS
+    final_report:
+      min_headings: 3
+      min_citations: 2
+      must_answer_user_question: true
+    findings:
+      min_files: 1
+    budgets:
+      max_search_calls: 15
+
+- id: full_turn_reject_before_search
+  category: full_turn
+  input: Research the open-source LLM landscape for enterprise adoption decisions.
+  approval_mode: auto_reject
+  stop_at_first_interrupt: true
+  expectations:
+    must_interrupt_for_approval: true
+    should_not_search_before_approval: true
+
+- id: full_turn_optional_skill_case
+  category: full_turn
+  input: Research financial reporting risks for AI infrastructure vendors and summarize them for an executive audience.
+  approval_mode: auto_approve
+  skills: finance
+  expectations:
+    must_interrupt_for_approval: true
+    required_tools_any_order:
+      - tavily_search
+    forbidden_tools: []
+    required_files:
+      - /research_request.md
+      - /research_brief.md
+      - /research_verification.md
+      - /final_report.md
+    verification_status_allowed:
+      - COMPLETE
+      - NEEDS_MINOR_ADDITIONS
+    final_report:
+      min_headings: 3
+      min_citations: 2
+      must_answer_user_question: true
+      report_must_include:
+        - risk
+    findings:
+      min_files: 1
+    budgets:
+      max_search_calls: 15
+

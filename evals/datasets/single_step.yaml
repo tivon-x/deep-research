@@ -1,0 +1,95 @@
+- id: scoping_remote_work_brief
+  kind: scoping
+  category: single_step
+  input: Research the main benefits and risks of remote work for software engineering teams in 2025.
+  approval_mode: auto_approve
+  expectations:
+    brief_must_include:
+      - Research Brief
+      - Sub-Questions
+      - Success Criteria
+    subquestions_between: [2, 5]
+
+- id: research_first_tool_open_source_llm
+  kind: research_first_tool
+  category: single_step
+  input: |
+    Task: Research the current open-source LLM landscape for enterprise teams.
+    Context: This is a web research task.
+    Output: Save your findings to /research_findings/open_source_llm.md
+    Constraints: Focus on licensing, deployment flexibility, and benchmark caveats.
+  expectations:
+    required_first_tool: tavily_search
+    required_query_terms:
+      - open-source
+      - llm
+
+- id: verification_incomplete_findings
+  kind: verification
+  category: single_step
+  input: Audit the current findings against the research brief and save the result to /research_verification.md.
+  setup_files:
+    /research_brief.md: |
+      ## Research Brief
+      ### Core Research Question
+      What are the biggest supply chain risks for consumer hardware companies?
+      ### Sub-Questions
+      1. What supplier concentration risks matter most?
+      2. What logistics risks matter most?
+      3. What mitigations are commonly used?
+    /research_findings/supplier_risk.md: |
+      ## Research Findings: Supplier concentration
+      ### Summary
+      Supplier concentration creates dependency risk for a small set of component vendors. [1]
+      ### Key Findings
+      Firms with single-source dependencies are more exposed to disruption. [1]
+      ### Gaps and Limitations
+      This file does not cover logistics or mitigation strategies.
+      ### Sources
+      [1] Supplier Risk Review: https://example.com/supplier-risk
+  expectations:
+    verification_status_allowed:
+      - NEEDS_MINOR_ADDITIONS
+      - NEEDS_MAJOR_REWORK
+
+- id: report_structure_remote_work
+  kind: report
+  category: single_step
+  input: Read the brief and findings, then write the final report to /final_report.md.
+  setup_files:
+    /research_brief.md: |
+      ## Research Brief
+      ### Core Research Question
+      How should software teams think about remote work tradeoffs?
+      ### Sub-Questions
+      1. What productivity benefits are common?
+      2. What collaboration risks are common?
+      3. What management practices improve outcomes?
+    /research_findings/remote_work.md: |
+      ## Research Findings: Remote Work
+      ### Summary
+      Remote work improves focus for many individual contributors, but coordination costs increase without strong written processes. [1][2]
+      ### Key Findings
+      Documentation quality is strongly correlated with smoother async work. [1]
+      Teams with deliberate onboarding rituals adapt better than teams without them. [2]
+      ### Gaps and Limitations
+      Quantified effect sizes vary across studies.
+      ### Sources
+      [1] Remote Work Productivity Study: https://example.com/remote-work-productivity
+      [2] Hybrid Collaboration Report: https://example.com/hybrid-collaboration
+    /research_sources/remote_work.sources.md: |
+      # Source Metadata Log: Remote Work
+      ## Source 1
+      - Citation ID: [1]
+      - Title: Remote Work Productivity Study
+      - URL: https://example.com/remote-work-productivity
+      ## Source 2
+      - Citation ID: [2]
+      - Title: Hybrid Collaboration Report
+      - URL: https://example.com/hybrid-collaboration
+  expectations:
+    min_headings: 3
+    report_must_include:
+      - remote work
+      - collaboration
+

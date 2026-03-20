@@ -1,0 +1,44 @@
+- id: multi_turn_remote_work_refine
+  category: multi_turn
+  turns:
+    - id: turn_1
+      user: Research the main benefits and risks of remote work for software engineering teams.
+      approval_mode: auto_approve
+      assertions:
+        required_files:
+          - /final_report.md
+        report_must_include:
+          - remote work
+    - id: turn_2
+      user: Revise the report to focus more on onboarding and cross-team collaboration tradeoffs.
+      approval_mode: auto_approve
+      assertions:
+        required_files:
+          - /final_report.md
+        report_must_include:
+          - onboarding
+          - collaboration
+        should_reuse_existing_context: true
+
+- id: multi_turn_export_controls_followup
+  category: multi_turn
+  turns:
+    - id: turn_1
+      user: Research the operational implications of AI chip export controls for semiconductor companies.
+      approval_mode: auto_approve
+      assertions:
+        required_files:
+          - /final_report.md
+        report_must_include:
+          - operational
+    - id: turn_2
+      user: Update the report to add a section on compliance execution risks and monitoring obligations.
+      approval_mode: auto_approve
+      assertions:
+        required_files:
+          - /final_report.md
+        report_must_include:
+          - compliance
+          - monitoring
+        should_reuse_existing_context: true
+
